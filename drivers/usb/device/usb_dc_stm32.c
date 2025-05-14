@@ -1064,6 +1064,62 @@ int usb_dc_ep_read(const uint8_t ep, uint8_t *const data, const uint32_t max_dat
 	return 0;
 }
 
+uint16_t usb_dc_ep_read_claim(const uint8_t ep, uint8_t **data)
+{
+	struct usb_dc_stm32_ep_state *ep_state = usb_dc_stm32_get_ep_state(ep);
+	uint32_t read_count;
+
+	if (!ep_state) {
+		LOG_ERR("Invalid Endpoint %x", ep);
+		return -EINVAL;
+	}
+
+	read_count = ep_state->read_count;
+
+	LOG_DBG("ep 0x%02x, %u bytes, %u+%u, %p", ep, read_count, ep_state->read_offset, read_count,
+		(void *)data);
+
+	if (!USB_EP_DIR_IS_OUT(ep)) { /* check if OUT ep */
+		LOG_ERR("Wrong endpoint direction: 0x%02x", ep);
+		return -EINVAL;
+	}
+
+	/* When both buffer and max data to read are zero, just ignore reading
+	 * and return available data in buffer. Otherwise, return data
+	 * previously stored in the buffer.
+	 */
+	if (data) {
+		*data = usb_dc_stm32_state.ep_buf[USB_EP_GET_IDX(ep)] + ep_state->read_offset;
+		return read_count;
+	}
+
+	return 0;
+}
+
+int usb_dc_ep_read_finish(const uint8_t ep, uint16_t const read_count)
+{
+	struct usb_dc_stm32_ep_state *ep_state = usb_dc_stm32_get_ep_state(ep);
+
+	if (!ep_state) {
+		LOG_ERR("Invalid Endpoint %x", ep);
+		return -EINVAL;
+	}
+
+	if (!USB_EP_DIR_IS_OUT(ep)) { /* check if OUT ep */
+		LOG_ERR("Wrong endpoint direction: 0x%02x", ep);
+		return -EINVAL;
+	}
+
+	ep_state->read_count -= read_count;
+	ep_state->read_offset += read_count;
+
+	if (usb_dc_ep_read_continue(ep) != 0) {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 int usb_dc_ep_halt(const uint8_t ep)
 {
 	return usb_dc_ep_set_stall(ep);

@@ -335,8 +335,12 @@ int usb_dc_ep_write(const uint8_t ep, const uint8_t *const data,
  *
  * @return 0 on success, negative errno code on fail.
  */
-int usb_dc_ep_read(const uint8_t ep, uint8_t *const data,
-		   const uint32_t max_data_len, uint32_t *const read_bytes);
+int usb_dc_ep_read(const uint8_t ep, uint8_t *const data, const uint32_t max_data_len,
+		   uint32_t *const read_bytes);
+
+uint16_t usb_dc_ep_read_claim(const uint8_t ep, uint8_t **data);
+
+int usb_dc_ep_read_finish(const uint8_t ep, uint16_t const read_count);
 
 /**
  * @brief Set callback function for the specified endpoint
