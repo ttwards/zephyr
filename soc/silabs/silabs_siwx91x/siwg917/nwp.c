@@ -22,6 +22,10 @@
 
 LOG_MODULE_REGISTER(siwx91x_nwp);
 
+BUILD_ASSERT(DT_REG_SIZE(DT_CHOSEN(zephyr_sram)) == KB(196) ||
+	     DT_REG_SIZE(DT_CHOSEN(zephyr_sram)) == KB(256) ||
+	     DT_REG_SIZE(DT_CHOSEN(zephyr_sram)) == KB(320));
+
 int siwg91x_get_nwp_config(int wifi_oper_mode, sl_wifi_device_configuration_t *get_config)
 {
 	sl_wifi_device_configuration_t default_config = {
@@ -32,15 +36,22 @@ int siwg91x_get_nwp_config(int wifi_oper_mode, sl_wifi_device_configuration_t *g
 			.feature_bit_map = SL_SI91X_FEAT_SECURITY_OPEN | SL_SI91X_FEAT_WPS_DISABLE,
 			.tcp_ip_feature_bit_map = SL_SI91X_TCP_IP_FEAT_EXTENSION_VALID,
 			.custom_feature_bit_map = SL_SI91X_CUSTOM_FEAT_EXTENSION_VALID,
-			.ext_custom_feature_bit_map =
-				MEMORY_CONFIG |
-				SL_SI91X_EXT_FEAT_XTAL_CLK,
+			.ext_custom_feature_bit_map = SL_SI91X_EXT_FEAT_XTAL_CLK,
 		}
 	};
+	sl_si91x_boot_configuration_t *boot_config = &default_config.boot_config;
 
 	__ASSERT(get_config, "get_config cannot be NULL");
 
-	sl_si91x_boot_configuration_t *boot_config = &default_config.boot_config;
+	if (DT_REG_SIZE(DT_CHOSEN(zephyr_sram)) == KB(196)) {
+		boot_config->ext_custom_feature_bit_map |= SL_SI91X_EXT_FEAT_480K_M4SS_192K;
+	} else if (DT_REG_SIZE(DT_CHOSEN(zephyr_sram)) == KB(256)) {
+		boot_config->ext_custom_feature_bit_map |= SL_SI91X_EXT_FEAT_416K_M4SS_256K;
+	} else if (DT_REG_SIZE(DT_CHOSEN(zephyr_sram)) == KB(320)) {
+		boot_config->ext_custom_feature_bit_map |= SL_SI91X_EXT_FEAT_352K_M4SS_320K;
+	} else {
+		 k_panic();
+	}
 
 	if (wifi_oper_mode == SL_SI91X_CLIENT_MODE) {
 		boot_config->oper_mode = SL_SI91X_CLIENT_MODE;
@@ -182,7 +193,11 @@ static int siwg917_nwp_init(void)
 
 	return 0;
 }
-SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE);
+#if defined(CONFIG_MBEDTLS_INIT)
+BUILD_ASSERT(CONFIG_SIWX91X_NWP_INIT_PRIORITY < CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
+	     "mbed TLS must be initialized after the NWP.");
+#endif
+SYS_INIT(siwg917_nwp_init, POST_KERNEL, CONFIG_SIWX91X_NWP_INIT_PRIORITY);
 
 /* IRQn 74 is used for communication with co-processor */
 Z_ISR_DECLARE(74, 0, IRQ074_Handler, 0);

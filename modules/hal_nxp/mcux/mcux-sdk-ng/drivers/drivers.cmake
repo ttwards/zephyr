@@ -3,9 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # fsl_common driver
-zephyr_library_sources(${MCUX_SDK_NG_DIR}/drivers/common/fsl_common.c
-                       ${MCUX_SDK_NG_DIR}/drivers/common/fsl_common_arm.c)
+zephyr_library_sources(${MCUX_SDK_NG_DIR}/drivers/common/fsl_common.c)
 zephyr_include_directories(${MCUX_SDK_NG_DIR}/drivers/common)
+
+if(CONFIG_ARCH STREQUAL "xtensa")
+  zephyr_library_sources(${MCUX_SDK_NG_DIR}/drivers/common/fsl_common_dsp.c)
+elseif(CONFIG_ARCH STREQUAL "arm")
+  zephyr_library_sources(${MCUX_SDK_NG_DIR}/drivers/common/fsl_common_arm.c)
+endif()
 
 set_variable_ifdef(CONFIG_HWINFO_MCUX_SRC_V2    CONFIG_MCUX_COMPONENT_driver.src_2)
 set_variable_ifdef(CONFIG_GPIO_MCUX_IGPIO       CONFIG_MCUX_COMPONENT_driver.igpio)
@@ -52,6 +57,7 @@ set_variable_ifdef(CONFIG_CAN_MCUX_FLEXCAN_FD   CONFIG_MCUX_COMPONENT_driver.fle
 set_variable_ifdef(CONFIG_COUNTER_NXP_PIT       CONFIG_MCUX_COMPONENT_driver.pit)
 set_variable_ifdef(CONFIG_COUNTER_MCUX_RTC      CONFIG_MCUX_COMPONENT_driver.rtc)
 set_variable_ifdef(CONFIG_DAC_MCUX_DAC          CONFIG_MCUX_COMPONENT_driver.dac)
+set_variable_ifdef(CONFIG_DAC_MCUX_DAC12        CONFIG_MCUX_COMPONENT_driver.dac12)
 set_variable_ifdef(CONFIG_DAC_MCUX_DAC32        CONFIG_MCUX_COMPONENT_driver.dac32)
 set_variable_ifdef(CONFIG_DMA_MCUX_EDMA         CONFIG_MCUX_COMPONENT_driver.dmamux)
 set_variable_ifdef(CONFIG_DMA_MCUX_EDMA_V3      CONFIG_MCUX_COMPONENT_driver.dmamux)
@@ -99,6 +105,7 @@ set_variable_ifdef(CONFIG_WDT_MCUX_RTWDOG       CONFIG_MCUX_COMPONENT_driver.rtw
 set_variable_ifdef(CONFIG_HAS_MCUX_RDC          CONFIG_MCUX_COMPONENT_driver.rdc)
 set_variable_ifdef(CONFIG_UART_MCUX_IUART       CONFIG_MCUX_COMPONENT_driver.iuart)
 set_variable_ifdef(CONFIG_ADC_MCUX_12B1MSPS_SAR CONFIG_MCUX_COMPONENT_driver.adc_12b1msps_sar)
+set_variable_ifdef(CONFIG_HWINFO_MCUX_MCX_CMC   CONFIG_MCUX_COMPONENT_driver.mcx_cmc)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_SRC       CONFIG_MCUX_COMPONENT_driver.src)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_SIM       CONFIG_MCUX_COMPONENT_driver.sim)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_RCM       CONFIG_MCUX_COMPONENT_driver.rcm)
@@ -131,6 +138,7 @@ set_variable_ifdef(CONFIG_PINCTRL_NXP_PORT      CONFIG_MCUX_COMPONENT_driver.por
 set_variable_ifdef(CONFIG_DMA_NXP_EDMA          CONFIG_MCUX_COMPONENT_driver.edma_soc_rev2)
 set_variable_ifdef(CONFIG_COUNTER_MCUX_SNVS_SRTC    CONFIG_MCUX_COMPONENT_driver.snvs_lp)
 set_variable_ifdef(CONFIG_DISPLAY_MCUX_DCNANO_LCDIF CONFIG_MCUX_COMPONENT_driver.lcdif)
+set_variable_ifdef(CONFIG_MIPI_DBI_NXP_DCNANO_LCDIF CONFIG_MCUX_COMPONENT_driver.lcdif)
 set_variable_ifdef(CONFIG_MIPI_DBI_NXP_FLEXIO_LCDIF CONFIG_MCUX_COMPONENT_driver.flexio_mculcd)
 set_variable_ifdef(CONFIG_VIDEO_MCUX_MIPI_CSI2RX    CONFIG_MCUX_COMPONENT_driver.mipi_csi2rx)
 set_variable_ifdef(CONFIG_ETH_NXP_IMX_NETC          CONFIG_MCUX_COMPONENT_driver.netc)

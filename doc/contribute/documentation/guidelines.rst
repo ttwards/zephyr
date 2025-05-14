@@ -883,6 +883,21 @@ Application build commands
 
       If set, additional arguments to the flash invocation.
 
+   .. rst:directive:option:: debug-args
+      :type: string
+
+      If set, additional arguments to the debug invocation.
+
+   .. rst:directive:option:: debugserver-args
+      :type: string
+
+      If set, additional arguments to the debugserver invocation.
+
+   .. rst:directive:option:: attach-args
+      :type: string
+
+      If set, additional arguments to the attach invocation.
+
    .. rst:directive:option:: snippets
       :type: string
 
@@ -1265,6 +1280,11 @@ Boards
       This directive requires that the documentation is built with hardware features generation enabled
       (``zephyr_generate_hw_features`` config option set to ``True``). If disabled, a warning message
       will be shown instead of the hardware features tables.
+
+      It is possible to limit the hardware features generation to boards from a specific list of vendors
+      to speed up documentation builds without completely disabling the hardware features table. Set the
+      config option ``zephyr_hw_features_vendor_filter`` to the list of vendors to generate features for.
+      If the option is empty, hardware features are generated for all boards from all vendors.
 
 .. rst:directive:: .. zephyr:board-supported-runners::
 

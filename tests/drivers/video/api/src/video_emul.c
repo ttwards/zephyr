@@ -83,10 +83,10 @@ ZTEST(video_common, test_video_frmival)
 
 	/* Do a first enumeration of frame intervals, expected to work */
 	zexpect_ok(video_enum_frmival(imager_dev, VIDEO_EP_OUT, &fie));
-	zexpect_equal(fie.index, 1, "fie's index should increment by one at every iteration");
+	zexpect_equal(fie.index, 0, "fie's index should not increment on its own");
 
 	/* Test that every value of the frame interval enumerator can be applied */
-	do {
+	for (fie.index = 0; video_enum_frmival(imager_dev, VIDEO_EP_OUT, &fie) == 0; fie.index++) {
 		struct video_frmival q, a;
 		uint32_t min, max, step;
 
@@ -111,28 +111,36 @@ ZTEST(video_common, test_video_frmival)
 			for (q.numerator = min; q.numerator <= max; q.numerator += step) {
 				zexpect_ok(video_set_frmival(imager_dev, VIDEO_EP_OUT, &q));
 				zexpect_ok(video_get_frmival(imager_dev, VIDEO_EP_OUT, &a));
-				zexpect_equal(video_frmival_nsec(&q), video_frmival_nsec(&a));
+				zexpect_equal(video_frmival_nsec(&q), video_frmival_nsec(&a),
+					      "query %u/%u (%u nsec) answer %u/%u (%u nsec, sw)",
+					      q.numerator, q.denominator, video_frmival_nsec(&q),
+					      a.numerator, a.denominator, video_frmival_nsec(&a));
 			}
 			break;
 		case VIDEO_FRMIVAL_TYPE_DISCRETE:
 			/* There is just one frame interval to test */
-			zexpect_ok(video_set_frmival(imager_dev, VIDEO_EP_OUT, &fie.discrete));
+			memcpy(&q, &fie.discrete, sizeof(q));
+			zexpect_ok(video_set_frmival(imager_dev, VIDEO_EP_OUT, &q));
 			zexpect_ok(video_get_frmival(imager_dev, VIDEO_EP_OUT, &a));
 
-			zexpect_equal(video_frmival_nsec(&fie.discrete), video_frmival_nsec(&a));
+			zexpect_equal(video_frmival_nsec(&fie.discrete), video_frmival_nsec(&a),
+				      "query %u/%u (%u nsec) answer %u/%u (%u nsec, discrete)",
+				      q.numerator, q.denominator, video_frmival_nsec(&q),
+				      a.numerator, a.denominator, video_frmival_nsec(&a));
 			break;
 		}
-	} while (video_enum_frmival(imager_dev, VIDEO_EP_OUT, &fie) == 0);
+	}
 }
 
 ZTEST(video_common, test_video_ctrl)
 {
-	int value;
+	struct video_control ctrl = {.id = VIDEO_CID_PRIVATE_BASE + 0x01, .val = 30};
 
-	/* Exposure control, expected to be supported by all imagers */
-	zexpect_ok(video_set_ctrl(imager_dev, VIDEO_CID_PRIVATE_BASE + 0x01, (void *)30));
-	zexpect_ok(video_get_ctrl(imager_dev, VIDEO_CID_PRIVATE_BASE + 0x01, &value));
-	zexpect_equal(value, 30);
+	/* Emulated vendor specific control, expected to be supported by all imagers */
+	zexpect_ok(video_set_ctrl(imager_dev, &ctrl));
+	ctrl.val = 0;
+	zexpect_ok(video_get_ctrl(imager_dev, &ctrl));
+	zexpect_equal(ctrl.val, 30);
 }
 
 ZTEST(video_common, test_video_vbuf)

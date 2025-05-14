@@ -66,6 +66,10 @@ void board_early_init_hook(void)
 	CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);     /* !< Set AHBCLKDIV divider to value 1 */
 	CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U); /* !< Set FROHFDIV divider to value 1 */
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(edma0))
+	RESET_ReleasePeripheralReset(kDMA_RST_SHIFT_RSTn);
+#endif
+
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(gpio0))
 	RESET_ReleasePeripheralReset(kGPIO0_RST_SHIFT_RSTn);
 	CLOCK_EnableClock(kCLOCK_GateGPIO0);
@@ -86,6 +90,34 @@ void board_early_init_hook(void)
 	CLOCK_EnableClock(kCLOCK_GateGPIO3);
 #endif
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpadc0))
+	CLOCK_SetClockDiv(kCLOCK_DivADC0, 1u);
+	CLOCK_AttachClk(kFRO12M_to_ADC0);
+
+	CLOCK_EnableClock(kCLOCK_GateADC0);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpcmp0))
+	CLOCK_AttachClk(kFRO12M_to_CMP0);
+	CLOCK_SetClockDiv(kCLOCK_DivCMP0_FUNC, 1U);
+	SPC_EnableActiveModeAnalogModules(SPC0, (kSPC_controlCmp0 | kSPC_controlCmp0Dac));
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpi2c0))
+	CLOCK_SetClockDiv(kCLOCK_DivLPI2C0, 1u);
+	CLOCK_AttachClk(kFRO12M_to_LPI2C0);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpspi0))
+	CLOCK_SetClockDiv(kCLOCK_DivLPSPI0, 1u);
+	CLOCK_AttachClk(kFRO12M_to_LPSPI0);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpspi1))
+	CLOCK_SetClockDiv(kCLOCK_DivLPSPI1, 1u);
+	CLOCK_AttachClk(kFRO12M_to_LPSPI1);
+#endif
+
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpuart0))
 	CLOCK_SetClockDiv(kCLOCK_DivLPUART0, 1u);
 	CLOCK_AttachClk(kFRO12M_to_LPUART0);
@@ -94,6 +126,11 @@ void board_early_init_hook(void)
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpuart1))
 	CLOCK_SetClockDiv(kCLOCK_DivLPUART1, 1u);
 	CLOCK_AttachClk(kFRO12M_to_LPUART1);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpuart2))
+	CLOCK_SetClockDiv(kCLOCK_DivLPUART2, 1u);
+	CLOCK_AttachClk(kFRO12M_to_LPUART2);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(porta))

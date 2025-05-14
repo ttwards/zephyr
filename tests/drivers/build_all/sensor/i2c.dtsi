@@ -1010,7 +1010,7 @@ test_i2c_lis2dux12: lis2dux12@8a {
 	int2-gpios = <&test_gpio 0 0>;
 	range = <LIS2DUX12_DT_FS_16G>;
 	odr = <LIS2DUX12_DT_ODR_100Hz>;
-	power-mode = <LIS2DUX12_OPER_MODE_HIGH_FREQUENCY>;
+	power-mode = <LIS2DUX12_OPER_MODE_HIGH_PERFORMANCE>;
 	status = "okay";
 };
 
@@ -1227,7 +1227,7 @@ test_i2c_lis2duxs12: lis2duxs12@a7 {
 	int2-gpios = <&test_gpio 0 0>;
 	range = <LIS2DUX12_DT_FS_16G>;
 	odr = <LIS2DUX12_DT_ODR_100Hz>;
-	power-mode = <LIS2DUX12_OPER_MODE_HIGH_FREQUENCY>;
+	power-mode = <LIS2DUX12_OPER_MODE_HIGH_PERFORMANCE>;
 	status = "okay";
 };
 
@@ -1283,4 +1283,16 @@ test_i2c_icp201xx: icp201xx@af {
 	int-gpios = <&test_gpio 0 0>;
 	op-mode = "mode0";
 	drive-strength = "current_12mA_1_8V";
+};
+
+test_i2c_paj7620: paj7620@b0 {
+	compatible = "pixart,paj7620";
+	reg = <0xb0>;
+	int-gpios = <&test_gpio 0 0>;
+};
+
+test_i2c_icm45686: icm45686@b1 {
+	compatible = "invensense,icm45686";
+	reg = <0xb1>;
+	int-gpios = <&test_gpio 0 0>;
 };
