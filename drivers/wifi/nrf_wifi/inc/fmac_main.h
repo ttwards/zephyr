@@ -85,6 +85,7 @@ struct nrf_wifi_vif_ctx_zep {
 #endif /* CONFIG_NRF70_AP_MODE */
 #ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
 	struct k_work nrf_wifi_rpu_recovery_work;
+	struct k_work_delayable nrf_wifi_rpu_recovery_bringup_work;
 #endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 	int rts_threshold_value;
 };
@@ -117,6 +118,8 @@ struct nrf_wifi_ctx_zep {
 	unsigned int rpu_recovery_retries;
 	int rpu_recovery_success;
 	int rpu_recovery_failure;
+	int wdt_irq_received;
+	int wdt_irq_ignored;
 #endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 };
 

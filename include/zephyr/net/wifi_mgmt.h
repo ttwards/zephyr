@@ -317,44 +317,73 @@ NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_WIFI_START_ROAMING);
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_WIFI_NEIGHBOR_REP_COMPLETE);
 
+/** @cond INTERNAL_HIDDEN */
+
+enum {
+	NET_EVENT_WIFI_CMD_SCAN_RESULT_VAL,
+	NET_EVENT_WIFI_CMD_SCAN_DONE_VAL,
+	NET_EVENT_WIFI_CMD_CONNECT_RESULT_VAL,
+	NET_EVENT_WIFI_CMD_DISCONNECT_RESULT_VAL,
+	NET_EVENT_WIFI_CMD_IFACE_STATUS_VAL,
+	NET_EVENT_WIFI_CMD_TWT_VAL,
+	NET_EVENT_WIFI_CMD_TWT_SLEEP_STATE_VAL,
+	NET_EVENT_WIFI_CMD_RAW_SCAN_RESULT_VAL,
+	NET_EVENT_WIFI_CMD_DISCONNECT_COMPLETE_VAL,
+	NET_EVENT_WIFI_CMD_SIGNAL_CHANGE_VAL,
+	NET_EVENT_WIFI_CMD_NEIGHBOR_REP_RECEIVED_VAL,
+	NET_EVENT_WIFI_CMD_NEIGHBOR_REP_COMPLETE_VAL,
+	NET_EVENT_WIFI_CMD_AP_ENABLE_RESULT_VAL,
+	NET_EVENT_WIFI_CMD_AP_DISABLE_RESULT_VAL,
+	NET_EVENT_WIFI_CMD_AP_STA_CONNECTED_VAL,
+	NET_EVENT_WIFI_CMD_AP_STA_DISCONNECTED_VAL,
+	NET_EVENT_WIFI_CMD_SUPPLICANT_VAL,
+
+	NET_EVENT_WIFI_CMD_MAX,
+};
+
+BUILD_ASSERT(NET_EVENT_WIFI_CMD_MAX <= NET_MGMT_MAX_COMMANDS,
+	     "Number of events in net_event_wifi_cmd exceeds the limit");
+
+/** @endcond */
+
 /** @brief Wi-Fi management events */
 enum net_event_wifi_cmd {
 	/** Scan results available */
-	NET_EVENT_WIFI_CMD_SCAN_RESULT = 1,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_SCAN_RESULT),
 	/** Scan done */
-	NET_EVENT_WIFI_CMD_SCAN_DONE,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_SCAN_DONE),
 	/** Connect result */
-	NET_EVENT_WIFI_CMD_CONNECT_RESULT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_CONNECT_RESULT),
 	/** Disconnect result */
-	NET_EVENT_WIFI_CMD_DISCONNECT_RESULT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_DISCONNECT_RESULT),
 	/** Interface status */
-	NET_EVENT_WIFI_CMD_IFACE_STATUS,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_IFACE_STATUS),
 	/** TWT events */
-	NET_EVENT_WIFI_CMD_TWT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_TWT),
 	/** TWT sleep status: awake or sleeping, can be used by application
 	 * to determine if it can send data or not.
 	 */
-	NET_EVENT_WIFI_CMD_TWT_SLEEP_STATE,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_TWT_SLEEP_STATE),
 	/** Raw scan results available */
-	NET_EVENT_WIFI_CMD_RAW_SCAN_RESULT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_RAW_SCAN_RESULT),
 	/** Disconnect complete */
-	NET_EVENT_WIFI_CMD_DISCONNECT_COMPLETE,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_DISCONNECT_COMPLETE),
 	/** Signal change event */
-	NET_EVENT_WIFI_CMD_SIGNAL_CHANGE,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_SIGNAL_CHANGE),
 	/** Neighbor Report */
-	NET_EVENT_WIFI_CMD_NEIGHBOR_REP_RECEIVED,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_NEIGHBOR_REP_RECEIVED),
 	/** Neighbor Report complete */
-	NET_EVENT_WIFI_CMD_NEIGHBOR_REP_COMPLETE,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_NEIGHBOR_REP_COMPLETE),
 	/** AP mode enable result */
-	NET_EVENT_WIFI_CMD_AP_ENABLE_RESULT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_AP_ENABLE_RESULT),
 	/** AP mode disable result */
-	NET_EVENT_WIFI_CMD_AP_DISABLE_RESULT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_AP_DISABLE_RESULT),
 	/** STA connected to AP */
-	NET_EVENT_WIFI_CMD_AP_STA_CONNECTED,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_AP_STA_CONNECTED),
 	/** STA disconnected from AP */
-	NET_EVENT_WIFI_CMD_AP_STA_DISCONNECTED,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_AP_STA_DISCONNECTED),
 	/** Supplicant specific event */
-	NET_EVENT_WIFI_CMD_SUPPLICANT,
+	NET_MGMT_CMD(NET_EVENT_WIFI_CMD_SUPPLICANT),
 };
 
 /** Event emitted for Wi-Fi scan result */
@@ -702,6 +731,20 @@ struct wifi_ps_params {
 	enum wifi_ps_exit_strategy exit_strategy;
 };
 
+#define WIFI_BTWT_AGREEMENT_MAX 5
+
+/** @brief Wi-Fi broadcast TWT parameters */
+struct wifi_btwt_params {
+	/** Broadcast TWT ID */
+	uint8_t btwt_id;
+	/** Broadcast TWT mantissa */
+	uint16_t btwt_mantissa;
+	/** Broadcast TWT exponent */
+	uint8_t btwt_exponent;
+	/** Broadcast TWT range */
+	uint8_t btwt_nominal_wake;
+};
+
 /** @brief Wi-Fi TWT parameters */
 struct wifi_twt_params {
 	/** TWT operation, see enum wifi_twt_operation */
@@ -748,20 +791,16 @@ struct wifi_twt_params {
 		} setup;
 		/** Setup specific parameters */
 		struct {
-			/** Broadcast TWT AP config */
-			uint16_t sub_id;
-			/** Range 64-255 */
-			uint8_t nominal_wake;
-			/** Max STA support */
-			uint8_t max_sta_support;
-			/** TWT mantissa */
-			uint16_t twt_mantissa;
-			/** TWT offset */
-			uint16_t twt_offset;
-			/** TWT exponent */
-			uint8_t twt_exponent;
-			/** SP gap */
-			uint8_t sp_gap;
+			/** Broadcast TWT station wait time */
+			uint8_t btwt_sta_wait;
+			/** Broadcast TWT offset */
+			uint16_t btwt_offset;
+			/** In multiple of 4 beacon interval */
+			uint8_t btwt_li;
+			/** Broadcast TWT agreement count */
+			uint8_t btwt_count;
+			/** Broadcast TWT agreement sets */
+			struct wifi_btwt_params btwt_set_cfg[WIFI_BTWT_AGREEMENT_MAX];
 		} btwt;
 		/** Teardown specific parameters */
 		struct {

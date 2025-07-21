@@ -754,6 +754,12 @@
 		status = "disabled";
 	};
 
+	usbphy1: usbphy@10a000 {
+		compatible = "nxp,usbphy";
+		reg = <0x10a000 0x1000>;
+		status = "disabled";
+	};
+
 	lpcmp0: lpcmp@51000 {
 		compatible = "nxp,lpcmp";
 		reg = <0x51000 0x1000>;
@@ -890,6 +896,15 @@
 		clock-frequency = <16384>;
 		clock-src = <0>;
 		alarms-count = <1>;
+	};
+
+	smartdma: smartdma@33000 {
+		compatible = "nxp,smartdma";
+		reg = <0x33000 0x1000>;
+		status = "disabled";
+		interrupts = <53 0>;
+		program-mem = <0x4000000>;
+		#dma-cells = <0>;
 	};
 };
 

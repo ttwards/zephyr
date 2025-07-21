@@ -134,6 +134,11 @@ config OPENTHREAD_RADIO_WORKQUEUE_STACK_SIZE
 	default 608 if MPU_STACK_GUARD && FPU_SHARING && CPU_CORTEX_M
 	default 512
 
+config OPENTHREAD_RADIO_WORKQUEUE_PRIORITY
+	int "OpenThread radio transmit workqueue priority"
+	default 0 if OPENTHREAD_THREAD_PREEMPTIVE
+	default 7
+
 endmenu # "Zephyr optimizations"
 
 config OPENTHREAD_SHELL
@@ -336,6 +341,19 @@ config OPENTHREAD_INTERFACE_EARLY_UP
 	  Establishment phase.
 	  Otherwise, OpenThread interface will be marked operational UP only
 	  after the device joins a Thread network.
+
+config OPENTHREAD_PLATFORM_PKT_TXTIME
+	bool
+	default y if NET_PKT_TXTIME
+	help
+	  Enable packet TX time support. This is needed for when the application
+	  wants to set the exact time when the packet should be sent.
+
+config OPENTHREAD_PLATFORM_CARRIER_FUNCTIONS
+	bool
+	default y if OPENTHREAD_DIAG && IEEE802154_CARRIER_FUNCTIONS
+	help
+	  Enable support for functions such as modulated carrier and continuous carrier.
 
 menu "OpenThread stack features"
 rsource "Kconfig.features"

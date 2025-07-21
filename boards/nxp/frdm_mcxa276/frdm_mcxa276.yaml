@@ -17,7 +17,11 @@ supported:
   - gpio
   - uart
   - flash
+  - adc
+  - i2c
+  - spi
   - watchdog
   - counter
   - dma
+  - i3c
 vendor: nxp

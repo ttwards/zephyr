@@ -188,6 +188,74 @@ void board_early_init_hook(void)
 	CLOCK_SetClockDiv(kCLOCK_DivWWDT0, 1u);
 #endif
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpadc0)) || DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpadc1))
+	CLOCK_SetClockDiv(kCLOCK_DivADC, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_ADC);
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpadc0))
+	CLOCK_EnableClock(kCLOCK_GateADC0);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpadc1))
+	CLOCK_EnableClock(kCLOCK_GateADC1);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpcmp0))
+	CLOCK_AttachClk(kFRO_LF_DIV_to_CMP0);
+	CLOCK_SetClockDiv(kCLOCK_DivCMP0_FUNC, 1U);
+	SPC_EnableActiveModeAnalogModules(SPC0, (kSPC_controlCmp0 | kSPC_controlCmp0Dac));
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpcmp1))
+	CLOCK_AttachClk(kFRO_LF_DIV_to_CMP1);
+	CLOCK_SetClockDiv(kCLOCK_DivCMP1_FUNC, 1U);
+	SPC_EnableActiveModeAnalogModules(SPC0, (kSPC_controlCmp1 | kSPC_controlCmp1Dac));
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpcmp2))
+	CLOCK_AttachClk(kFRO_LF_DIV_to_CMP2);
+	CLOCK_SetClockDiv(kCLOCK_DivCMP2_FUNC, 1U);
+	SPC_EnableActiveModeAnalogModules(SPC0, (kSPC_controlCmp2 | kSPC_controlCmp2Dac));
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpi2c0))
+	CLOCK_SetClockDiv(kCLOCK_DivLPI2C0, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_LPI2C0);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpi2c1))
+	CLOCK_SetClockDiv(kCLOCK_DivLPI2C1, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_LPI2C1);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpi2c2))
+	CLOCK_SetClockDiv(kCLOCK_DivLPI2C2, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_LPI2C2);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpi2c3))
+	CLOCK_SetClockDiv(kCLOCK_DivLPI2C3, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_LPI2C3);
+#endif
+
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpspi0))
+	/* Configure input clock to be able to reach the datasheet specified band rate. */
+	CLOCK_SetClockDiv(kCLOCK_DivLPSPI0, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_LPSPI0);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpspi1))
+	/* Configure input clock to be able to reach the datasheet specified band rate. */
+	CLOCK_SetClockDiv(kCLOCK_DivLPSPI1, 1u);
+	CLOCK_AttachClk(kFRO_LF_DIV_to_LPSPI1);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ostimer0))
+	CLOCK_AttachClk(kCLK_1M_to_OSTIMER);
+#endif
+
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lptmr0))
 
 /*

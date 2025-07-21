@@ -426,6 +426,11 @@ static int cmd_udp_download_stop(const struct shell *sh, size_t argc,
 {
 	int ret;
 
+	if (!IS_ENABLED(CONFIG_NET_UDP)) {
+		shell_warn(sh, "UDP not supported");
+		return -ENOEXEC;
+	}
+
 	ret = zperf_udp_download_stop();
 	if (ret < 0) {
 		shell_fprintf(sh, SHELL_WARNING, "UDP server not running!\n");
@@ -804,8 +809,9 @@ static int execute_upload(const struct shell *sh,
 	shell_fprintf(sh, SHELL_NORMAL, "\n");
 	shell_fprintf(sh, SHELL_NORMAL, "Packet size:\t%u bytes\n",
 		      param->packet_size);
-	shell_fprintf(sh, SHELL_NORMAL, "Rate:\t\t%u kbps\n",
-		      param->rate_kbps);
+	shell_fprintf(sh, SHELL_NORMAL, "Rate:\t\t");
+	print_number(sh, param->rate_kbps, KBPS, KBPS_UNIT);
+	shell_fprintf(sh, SHELL_NORMAL, "\n");
 
 	if (IS_ENABLED(CONFIG_ZPERF_SESSION_PER_THREAD) &&
 	    COND_CODE_1(CONFIG_ZPERF_SESSION_PER_THREAD,
@@ -1494,6 +1500,11 @@ static int cmd_tcp_download_stop(const struct shell *sh, size_t argc,
 {
 	int ret;
 
+	if (!IS_ENABLED(CONFIG_NET_TCP)) {
+		shell_warn(sh, "TCP not supported");
+		return -ENOEXEC;
+	}
+
 	ret = zperf_tcp_download_stop();
 	if (ret < 0) {
 		shell_fprintf(sh, SHELL_WARNING, "TCP server not running!\n");
@@ -1636,8 +1647,9 @@ static void session_cb(struct session *ses,
 		print_number_64(sh,
 				(uint64_t)ses->async_upload_ctx.param.duration_ms * USEC_PER_MSEC,
 				TIME_US, TIME_US_UNIT);
-		shell_fprintf(sh, SHELL_NORMAL, "\t\t%u kbps\n",
-			      ses->async_upload_ctx.param.rate_kbps);
+		shell_fprintf(sh, SHELL_NORMAL, "\t\t");
+		print_number(sh, ses->async_upload_ctx.param.rate_kbps, KBPS, KBPS_UNIT);
+		shell_fprintf(sh, SHELL_NORMAL, "\n");
 
 		data->finalized_count++;
 	}

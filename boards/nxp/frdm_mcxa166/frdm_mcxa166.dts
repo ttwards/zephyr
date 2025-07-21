@@ -21,6 +21,7 @@
 		sw0 = &user_button_2;
 		sw1 = &user_button_3;
 		watchdog0 = &wwdt0;
+		die-temp0 = &temp0;
 	};
 
 	chosen {
@@ -118,6 +119,35 @@
 
 &edma0 {
 	status = "okay";
+};
+
+&lpadc0 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpadc0>;
+	pinctrl-names = "default";
+};
+
+&lpcmp0 {
+	pinctrl-0 = <&pinmux_lpcmp0>;
+	pinctrl-names = "default";
+};
+
+&lpi2c1 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpi2c1>;
+	pinctrl-names = "default";
+};
+
+&lpi2c3 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpi2c3>;
+	pinctrl-names = "default";
+};
+
+&lpspi0 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpspi0>;
+	pinctrl-names = "default";
 };
 
 &flash {

@@ -46,4 +46,41 @@
 		};
 	};
 
+	pinmux_usbhfs: pinmux_usbhfs {
+		group0 {
+			pinmux = <USB0_VBUS_PIO0_22>,
+				<USB0_OVERCURRENTN_PIO0_28>,
+				<USB0_PORTPWRN_PIO1_12>;
+			bias-pull-up;
+			slew-rate = "standard";
+		};
+	};
+
+	pinmux_usbhhs: pinmux_usbhhs {
+		group0 {
+			pinmux = <USB1_OVERCURRENTN_PIO1_30>,
+				<USB1_PORTPWRN_PIO1_29>;
+			bias-pull-up;
+			slew-rate = "standard";
+		};
+	};
+
+	pinmux_sdif_default: pinmux_sdif_default {
+		group0 {
+			pinmux = <SDIF_SD0_D0_PIO0_24>,
+				<SDIF_SD0_D1_PIO0_25>,
+				<SDIF_SD0_D2_PIO0_31>,
+				<SD0_CLK_PIO0_7>,
+				<SD0_CMD_PIO0_8>,
+				<SD0_POW_EN_PIO0_9>,
+				<SDIF_SD0_D3_PIO1_0>;
+			slew-rate = "fast";
+		};
+
+		group1 {
+			pinmux = <SD0_WR_PRT_PIO0_15>,
+				<SD0_CARD_DET_N_PIO0_17>;
+			slew-rate = "standard";
+		};
+	};
 };

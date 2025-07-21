@@ -63,6 +63,11 @@ zephyr_compile_definitions_ifdef(CONFIG_SOC_COMPATIBLE_NRF54L15_CPUAPP NRF_APPLI
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54L20_ENGA       NRF54LM20A_ENGA_XXAA)
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54L20_ENGA_CPUAPP NRF_APPLICATION)
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54L20_ENGA_CPUFLPR NRF_FLPR)
+zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54LM20A_ENGA     NRF54LM20A_ENGA_XXAA)
+zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54LM20A_ENGA_CPUAPP NRF_APPLICATION)
+zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54LM20A_ENGA_CPUFLPR NRF_FLPR)
+zephyr_compile_definitions_ifdef(CONFIG_SOC_COMPATIBLE_NRF54LM20A NRF54LM20A_ENGA_XXAA)
+zephyr_compile_definitions_ifdef(CONFIG_SOC_COMPATIBLE_NRF54LM20A_CPUAPP NRF_APPLICATION)
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF9120             NRF9120_XXAA)
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF9160             NRF9160_XXAA)
 
@@ -132,6 +137,7 @@ zephyr_library_sources_ifdef(CONFIG_NRFX_GRTC    ${SRC_DIR}/nrfx_grtc.c)
 zephyr_library_sources_ifdef(CONFIG_NRFX_I2S     ${SRC_DIR}/nrfx_i2s.c)
 zephyr_library_sources_ifdef(CONFIG_NRFX_IPC     ${SRC_DIR}/nrfx_ipc.c)
 zephyr_library_sources_ifdef(CONFIG_NRFX_LPCOMP  ${SRC_DIR}/nrfx_lpcomp.c)
+zephyr_library_sources_ifdef(CONFIG_NRFX_MRAMC   ${SRC_DIR}/nrfx_mramc.c)
 zephyr_library_sources_ifdef(CONFIG_NRFX_NFCT    ${SRC_DIR}/nrfx_nfct.c)
 zephyr_library_sources_ifdef(CONFIG_NRFX_NVMC    ${SRC_DIR}/nrfx_nvmc.c)
 zephyr_library_sources_ifdef(CONFIG_NRFX_PDM     ${SRC_DIR}/nrfx_pdm.c)
@@ -164,7 +170,7 @@ if(CONFIG_NRFX_TWI OR CONFIG_NRFX_TWIM)
   zephyr_library_sources(${SRC_DIR}/nrfx_twi_twim.c)
 endif()
 
-# Inject HAL "CONFIG_NFCT_PINS_AS_GPIOS" definition if user requests to
+# Inject HAL "NFCT_PINS_AS_GPIOS" definition if user requests to
 # configure the NFCT pins as GPIOS. Do the same with "CONFIG_GPIO_AS_PINRESET"
 # to configure the reset GPIO as nRESET. This way, the HAL will take care of
 # doing the proper configuration sequence during system init
@@ -174,7 +180,6 @@ if(DEFINED uicr_path)
   dt_prop(nfct_pins_as_gpios PATH ${uicr_path} PROPERTY "nfct-pins-as-gpios")
   if(${nfct_pins_as_gpios})
     zephyr_library_compile_definitions(
-      CONFIG_NFCT_PINS_AS_GPIOS
       NRF_CONFIG_NFCT_PINS_AS_GPIOS
     )
   endif()
@@ -197,10 +202,11 @@ endif()
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54LX_SKIP_CLOCK_CONFIG NRF_SKIP_CLOCK_CONFIGURATION)
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54LX_DISABLE_FICR_TRIMCNF NRF_DISABLE_FICR_TRIMCNF)
 zephyr_compile_definitions_ifdef(CONFIG_SOC_NRF54LX_SKIP_GLITCHDETECTOR_DISABLE NRF_SKIP_GLITCHDETECTOR_DISABLE)
+zephyr_compile_definitions_ifndef(CONFIG_SOC_NRF54L_ANOMALY_56_WORKAROUND NRF54L_CONFIGURATION_56_ENABLE=0)
 
 # Inject code to skip TAMPC setup for nRF54L20 and nRF54L09. It is not supported for now.
 # It needs to be removed when support is provided.
-if(CONFIG_SOC_NRF54L20_ENGA_CPUAPP OR CONFIG_SOC_NRF54L09_ENGA_CPUAPP)
+if(CONFIG_SOC_NRF54L20_ENGA_CPUAPP OR CONFIG_SOC_NRF54LM20A_ENGA_CPUAPP OR CONFIG_SOC_NRF54L09_ENGA_CPUAPP)
 	  zephyr_compile_definitions(NRF_SKIP_TAMPC_SETUP)
 endif()
 
@@ -246,6 +252,8 @@ mdk_svd_ifdef(CONFIG_SOC_NRF54L15_CPUAPP      nrf54l15_application.svd)
 mdk_svd_ifdef(CONFIG_SOC_NRF54L15_CPUFLPR     nrf54l15_flpr.svd)
 mdk_svd_ifdef(CONFIG_SOC_NRF54L20_ENGA_CPUAPP nrf54lm20a_enga_application.svd)
 mdk_svd_ifdef(CONFIG_SOC_NRF54L20_ENGA_CPUFLPR nrf54lm20a_enga_flpr.svd)
+mdk_svd_ifdef(CONFIG_SOC_NRF54LM20A_ENGA_CPUAPP nrf54lm20a_enga_application.svd)
+mdk_svd_ifdef(CONFIG_SOC_NRF54LM20A_ENGA_CPUFLPR nrf54lm20a_enga_flpr.svd)
 mdk_svd_ifdef(CONFIG_SOC_NRF9120              nrf9120.svd)
 mdk_svd_ifdef(CONFIG_SOC_NRF9160              nrf9160.svd)
 mdk_svd_ifdef(CONFIG_SOC_NRF9230_ENGB_CPUAPP  nrf9230_engb_application.svd)

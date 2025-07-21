@@ -243,6 +243,14 @@ config NET_SOCKETS_TLS_MAX_CLIENT_SESSION_COUNT
 	    This variable specifies maximum number of stored TLS/DTLS sessions,
 	    used for TLS/DTLS session resumption.
 
+config NET_SOCKETS_TLS_CERT_VERIFY_CALLBACK
+	bool "TLS certificate verification callback support"
+	depends on NET_SOCKETS_SOCKOPT_TLS
+	help
+	  This option controls whether TLS_CERT_VERIFY_CALLBACK TLS socket option
+	  is available to use. It allows to register a certificate verification
+	  callback, which is called by the TLS backend during the TLS handshake.
+
 config NET_SOCKETS_OFFLOAD
 	bool "Offload Socket APIs"
 	help
@@ -342,7 +350,6 @@ if NET_SOCKETPAIR
 
 config NET_SOCKETPAIR_BUFFER_SIZE
 	int "Size of the intermediate buffer, in bytes"
-	default 1024 if WIFI_NM_WPA_SUPPLICANT
 	default 64
 	range 1 4096
 	help
@@ -364,8 +371,6 @@ if NET_SOCKETPAIR_STATIC
 
 config NET_SOCKETPAIR_MAX
 	int "How many socketpairs to pre-allocate"
-	default 6 if WIFI_NM_HOSTAPD_AP
-	default 4 if WIFI_NM_WPA_SUPPLICANT
 	default 1
 
 endif # NET_SOCKETPAIR_STATIC
@@ -374,8 +379,6 @@ if NET_SOCKETPAIR_HEAP
 
 config HEAP_MEM_POOL_ADD_SIZE_SOCKETPAIR
 	int
-	default 9136 if WIFI_NM_HOSTAPD_AP
-	default 6852 if WIFI_NM_WPA_SUPPLICANT
 	default 296
 
 endif # NET_SOCKETPAIR_HEAP

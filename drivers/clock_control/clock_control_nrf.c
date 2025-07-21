@@ -329,6 +329,18 @@ static void hfclk_stop(void)
 	nrfx_clock_hfclk_stop();
 }
 
+#if NRF_CLOCK_HAS_HFCLK24M
+static void hfclk24m_start(void)
+{
+	nrfx_clock_start(NRF_CLOCK_DOMAIN_HFCLK24M);
+}
+
+static void hfclk24m_stop(void)
+{
+	nrfx_clock_stop(NRF_CLOCK_DOMAIN_HFCLK24M);
+}
+#endif
+
 #if NRF_CLOCK_HAS_HFCLK192M
 static void hfclk192m_start(void)
 {
@@ -435,6 +447,13 @@ void z_nrf_clock_bt_ctlr_hf_release(void)
 
 	irq_unlock(key);
 }
+
+#if DT_NODE_EXISTS(DT_NODELABEL(hfxo))
+uint32_t z_nrf_clock_bt_ctlr_hf_get_startup_time_us(void)
+{
+	return DT_PROP(DT_NODELABEL(hfxo), startup_time_us);
+}
+#endif
 
 static int stop(const struct device *dev, clock_control_subsys_t subsys,
 		uint32_t ctx)
@@ -685,6 +704,10 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 	case NRFX_CLOCK_EVT_XO_TUNED:
 		clkstarted_handle(dev, CLOCK_CONTROL_NRF_TYPE_HFCLK);
 		break;
+	case NRFX_CLOCK_EVT_XO_TUNE_ERROR:
+	case NRFX_CLOCK_EVT_XO_TUNE_FAILED:
+		/* No processing needed. */
+		break;
 	case NRFX_CLOCK_EVT_HFCLK_STARTED:
 		/* HFCLK is stable after XOTUNED event.
 		 * HFCLK_STARTED means only that clock has been started.
@@ -707,7 +730,11 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 		break;
 	}
 #endif
-
+#if NRF_CLOCK_HAS_HFCLK24M
+	case NRFX_CLOCK_EVT_HFCLK24M_STARTED:
+		clkstarted_handle(dev, CLOCK_CONTROL_NRF_TYPE_HFCLK24M);
+		break;
+#endif
 #if NRF_CLOCK_HAS_HFCLK192M
 	case NRFX_CLOCK_EVT_HFCLK192M_STARTED:
 		clkstarted_handle(dev, CLOCK_CONTROL_NRF_TYPE_HFCLK192M);
@@ -736,15 +763,9 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 #endif
 #if NRF_CLOCK_HAS_PLL
 	case NRFX_CLOCK_EVT_PLL_STARTED:
-#endif
-#if NRF_CLOCK_HAS_XO_TUNE
-	case NRFX_CLOCK_EVT_XO_TUNE_ERROR:
-	case NRFX_CLOCK_EVT_XO_TUNE_FAILED:
-#endif
-	{
-		/* unhandled event */
+		/* No processing needed. */
 		break;
-	}
+#endif
 	default:
 		__ASSERT_NO_MSG(0);
 		break;
@@ -836,6 +857,13 @@ static const struct nrf_clock_control_config config = {
 			.stop = lfclk_stop,
 			IF_ENABLED(CONFIG_LOG, (.name = "lfclk",))
 		},
+#if NRF_CLOCK_HAS_HFCLK24M
+		[CLOCK_CONTROL_NRF_TYPE_HFCLK24M] = {
+			.start = hfclk24m_start,
+			.stop = hfclk24m_stop,
+			IF_ENABLED(CONFIG_LOG, (.name = "hfclk24m",))
+		},
+#endif
 #if NRF_CLOCK_HAS_HFCLK192M
 		[CLOCK_CONTROL_NRF_TYPE_HFCLK192M] = {
 			.start = hfclk192m_start,

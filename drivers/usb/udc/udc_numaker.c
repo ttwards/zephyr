@@ -171,7 +171,9 @@ static inline void numaker_usbd_sw_connect(const struct device *dev)
 	base->INTSTS = base->INTSTS;
 
 	/* Enable relevant interrupts */
-	base->INTEN = USBD_INT_BUS | USBD_INT_USB | USBD_INT_FLDET | USBD_INT_WAKEUP | USBD_INT_SOF;
+	base->INTEN = USBD_INT_BUS | USBD_INT_USB | USBD_INT_FLDET |
+		      IF_ENABLED(CONFIG_UDC_ENABLE_SOF, (USBD_INT_SOF |))
+		      USBD_INT_WAKEUP;
 
 	/* Clear SE0 for connect */
 	base->SE0 &= ~USBD_DRVSE0;
@@ -299,9 +301,17 @@ static int numaker_usbd_hw_setup(const struct device *dev)
 
 	SYS_UnlockReg();
 
-	/* Configure USB PHY for USBD */
+	/* Configure USB role as USB Device and enable USB PHY */
+#if defined(CONFIG_SOC_SERIES_M46X)
 	SYS->USBPHY = (SYS->USBPHY & ~SYS_USBPHY_USBROLE_Msk) |
 		      (SYS_USBPHY_USBROLE_STD_USBD | SYS_USBPHY_USBEN_Msk | SYS_USBPHY_SBO_Msk);
+#elif defined(CONFIG_SOC_SERIES_M2L31X)
+	SYS->USBPHY = (SYS->USBPHY & ~SYS_USBPHY_USBROLE_Msk) |
+		      (SYS_USBPHY_USBROLE_STD_USBD | SYS_USBPHY_USBEN_Msk | SYS_USBPHY_SBO_Msk);
+#elif defined(CONFIG_SOC_SERIES_M55M1X)
+	SYS->USBPHY = (SYS->USBPHY & ~SYS_USBPHY_USBROLE_Msk) |
+		      ((0 << SYS_USBPHY_USBROLE_Pos) | SYS_USBPHY_OTGPHYEN_Msk);
+#endif
 
 	/* Invoke Clock controller to enable module clock */
 	memset(&scc_subsys, 0x00, sizeof(scc_subsys));
@@ -1290,7 +1300,7 @@ static void numaker_udbd_isr(const struct device *dev)
 		base->INTSTS = USBD_INTSTS_SOFIF_Msk;
 
 		/* UDC stack would handle bottom-half processing */
-		udc_submit_event(dev, UDC_EVT_SOF, 0);
+		udc_submit_sof_event(dev);
 	}
 
 	/* USB Setup/EP */

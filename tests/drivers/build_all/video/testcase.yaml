@@ -28,3 +28,11 @@ tests:
       - arduino_nicla_vision/stm32h747xx/m7
     extra_args:
       - platform:stm32h7b3i_dk/stm32h7b3xx:SHIELD=st_b_cams_omv_mb1683
+  drivers.video.esp32_dvp.build:
+    platform_allow:
+      - esp32s3_eye/esp32s3/procpu
+  drivers.video.stm32_dcmipp.build:
+    platform_allow:
+      - stm32n6570_dk/stm32n657xx/sb
+    extra_args:
+      - platform:stm32n6570_dk/stm32n657xx/sb:SHIELD=st_b_cams_imx_mb1854

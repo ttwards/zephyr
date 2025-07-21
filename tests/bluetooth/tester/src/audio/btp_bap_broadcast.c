@@ -7,26 +7,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stddef.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
-#include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/iso.h>
-#include <zephyr/types.h>
-#include <zephyr/kernel.h>
-#include <zephyr/sys/ring_buffer.h>
+#include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
+#include <zephyr/bluetooth/audio/cap.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/crypto.h>
 #include <zephyr/bluetooth/gap.h>
-
-#include "bap_endpoint.h"
+#include <zephyr/bluetooth/iso.h>
+#include <zephyr/bluetooth/uuid.h>
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/sys/byteorder.h>
-#define LOG_MODULE_NAME bttester_bap_broadcast
-LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
+#include <zephyr/sys/ring_buffer.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/util_macro.h>
+#include <zephyr/types.h>
+
+#include "btp_bap_audio_stream.h"
+#include "bap_endpoint.h"
 #include "btp/btp.h"
 #include "btp_bap_audio_stream.h"
 #include "btp_bap_broadcast.h"
+
+#define LOG_MODULE_NAME bttester_bap_broadcast
+LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
 
 static K_SEM_DEFINE(sem_stream_stopped, 0U,
 		    (CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT * CONFIG_BT_BAP_BROADCAST_SRC_COUNT));
@@ -948,13 +962,18 @@ static void syncable_cb(struct bt_bap_broadcast_sink *sink, const struct bt_iso_
 	LOG_DBG("Broadcaster PA found, encrypted %d, requested_bis_sync %d", biginfo->encryption,
 		broadcaster->requested_bis_sync);
 
-	if (biginfo->encryption) {
+	broadcaster->biginfo_received = true;
+
+	if (biginfo->encryption && !broadcaster->broadcast_code_received) {
 		/* Wait for Set Broadcast Code and start sync at broadcast_code_cb */
+		LOG_DBG("BIGInfo received, but have not yet received broadcast code for encrypted "
+			"broadcast");
 		return;
 	}
 
-	if (!broadcaster->assistant_request || !broadcaster->requested_bis_sync) {
+	if (!broadcaster->assistant_request && broadcaster->requested_bis_sync == 0U) {
 		/* No sync with any BIS was requested yet */
+		LOG_DBG("BIGInfo received, but have not yet received request to sync to broadcast");
 		return;
 	}
 
@@ -1191,8 +1210,15 @@ static void broadcast_code_cb(struct bt_conn *conn,
 
 	broadcaster->sink_recv_state = recv_state;
 	(void)memcpy(broadcaster->sink_broadcast_code, broadcast_code, BT_ISO_BROADCAST_CODE_SIZE);
+	broadcaster->broadcast_code_received = true;
 
 	if (!broadcaster->requested_bis_sync) {
+		LOG_DBG("Broadcast code received, but not requested to sync");
+		return;
+	}
+
+	if (!broadcaster->biginfo_received) {
+		LOG_DBG("Broadcast code received, but have not yet received BIGInfo");
 		return;
 	}
 
@@ -1459,6 +1485,11 @@ uint8_t btp_bap_broadcast_sink_bis_sync(const void *cmd, uint16_t cmd_len, void 
 	}
 
 	broadcaster->requested_bis_sync = sys_le32_to_cpu(cp->requested_bis_sync);
+
+	if (!broadcaster->biginfo_received) {
+		LOG_DBG("Broadcast sync requested, but have not yet received BIGInfo");
+		return BTP_STATUS_SUCCESS;
+	}
 
 	err = bt_bap_broadcast_sink_sync(broadcaster->sink, broadcaster->requested_bis_sync,
 					 broadcaster->sink_streams,

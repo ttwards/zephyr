@@ -49,7 +49,7 @@ struct uart_ra_sci_b_data {
 	/* RX */
 	struct st_transfer_instance rx_transfer;
 	struct st_dtc_instance_ctrl rx_transfer_ctrl;
-	struct st_transfer_info rx_transfer_info;
+	struct st_transfer_info rx_transfer_info DTC_TRANSFER_INFO_ALIGNMENT;
 	struct st_transfer_cfg rx_transfer_cfg;
 	struct st_dtc_extended_cfg rx_transfer_cfg_extend;
 	struct k_work_delayable rx_timeout_work;
@@ -64,7 +64,7 @@ struct uart_ra_sci_b_data {
 	/* TX */
 	struct st_transfer_instance tx_transfer;
 	struct st_dtc_instance_ctrl tx_transfer_ctrl;
-	struct st_transfer_info tx_transfer_info;
+	struct st_transfer_info tx_transfer_info DTC_TRANSFER_INFO_ALIGNMENT;
 	struct st_transfer_cfg tx_transfer_cfg;
 	struct st_dtc_extended_cfg tx_transfer_cfg_extend;
 	struct k_work_delayable tx_timeout_work;
@@ -386,7 +386,7 @@ static int uart_ra_sci_b_fifo_read(const struct device *dev, uint8_t *rx_data, c
 	}
 
 	/* Clear overrun error flag */
-	cfg->regs->CFCLR_b.ORERC = 0U;
+	cfg->regs->CFCLR_b.ORERC = 1U;
 
 	return num_rx;
 }

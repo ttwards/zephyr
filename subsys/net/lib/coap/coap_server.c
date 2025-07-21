@@ -385,7 +385,7 @@ static inline bool coap_service_in_section(const struct coap_service *service)
 	       STRUCT_SECTION_END(coap_service) > service;
 }
 
-static inline void coap_service_raise_event(const struct coap_service *service, uint32_t mgmt_event)
+static inline void coap_service_raise_event(const struct coap_service *service, uint64_t mgmt_event)
 {
 #if defined(CONFIG_NET_MGMT_EVENT_INFO)
 	const struct net_event_coap_service net_event = {
@@ -725,6 +725,12 @@ int coap_resource_parse_observe(struct coap_resource *resource, const struct coa
 		ret = coap_service_remove_observer(service, resource, addr, token, tkl);
 		if (ret < 0) {
 			LOG_WRN("Failed to remove observer (%d)", ret);
+			goto unlock;
+		}
+
+		if (ret == 0) {
+			/* Observer not found */
+			ret = -ENOENT;
 		}
 	}
 

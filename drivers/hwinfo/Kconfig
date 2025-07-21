@@ -62,6 +62,14 @@ endchoice
 
 endif # HWINFO_CC13XX_CC26XX
 
+config HWINFO_CC23X0
+	bool "TI CC23X0 hwinfo"
+	default y
+	depends on SOC_FAMILY_TI_SIMPLELINK && SOC_SERIES_CC23X0
+	select HWINFO_HAS_DRIVER
+	help
+	  Enable CC23X0 hwinfo driver.
+
 config HWINFO_STM32
 	bool "STM32 hwinfo"
 	default y
@@ -143,6 +151,18 @@ config HWINFO_RPI_PICO
 	select PICOSDK_USE_FLASH
 	help
 	  Enable Raspberry Pi Pico hwinfo driver.
+
+config HWINFO_RPI_PICO_CHIP_ID
+	bool "Use chip ID as device ID for RP2350"
+	default n
+	depends on SOC_SERIES_RP2350
+	depends on HWINFO_RPI_PICO
+	help
+	  Use the chip ID as device ID for RP2350 instead of the default
+	  flash RUID. This is useful for RP2350 boards that do not have a
+	  flash, or when OTP ID is preferred over flash RUID.
+	  This option is recommended for new RP2350 designs, but defaults to n
+	  to prevent existing devices from changing their serial numbers.
 
 config HWINFO_SAM_RSTC
 	bool "Atmel SAM reset cause"
@@ -257,7 +277,7 @@ config HWINFO_AMBIQ
 config HWINFO_NUMAKER
 	bool "NuMaker hwinfo"
 	default y
-	depends on SOC_SERIES_M46X
+	depends on SOC_SERIES_M46X || SOC_SERIES_M55M1X
 	select HWINFO_HAS_DRIVER
 	select HAS_NUMAKER_FMC
 	help
@@ -288,5 +308,12 @@ config HWINFO_RENESAS_RA
 	select HWINFO_HAS_DRIVER
 	help
 	  Enable RENESAS RA hwinfo driver
+
+config HWINFO_MSPM0
+	bool "TI MSPM0 hwinfo"
+	default y
+	depends on SOC_FAMILY_TI_MSPM0
+	help
+	  Enable TI MSPM0 hwinfo driver
 
 endif

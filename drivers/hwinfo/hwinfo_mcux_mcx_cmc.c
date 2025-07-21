@@ -11,6 +11,28 @@
 
 LOG_MODULE_REGISTER(hwinfo_cmc, CONFIG_HWINFO_LOG_LEVEL);
 
+#ifndef CMC0
+#define CMC0 CMC
+#endif
+
+#ifdef CMC_SRS_VBAT_MASK
+#define CMC_RESET_MASK_POR (CMC_SRS_POR_MASK | CMC_SRS_VBAT_MASK)
+#else
+#define CMC_RESET_MASK_POR CMC_SRS_POR_MASK
+#endif
+
+#ifdef CMC_SRS_WWDT1_MASK
+#define CMC_RESET_MASK_WATCHDOG (CMC_SRS_WWDT0_MASK | CMC_SRS_WWDT1_MASK)
+#else
+#define CMC_RESET_MASK_WATCHDOG CMC_SRS_WWDT0_MASK
+#endif
+
+#ifdef CMC_SRS_CDOG1_MASK
+#define CMC_RESET_MASK_CDOG (CMC_SRS_CDOG0_MASK | CMC_SRS_CDOG1_MASK)
+#else
+#define CMC_RESET_MASK_CDOG CMC_SRS_CDOG0_MASK
+#endif
+
 /**
  * @brief Translate from CMC reset source mask to Zephyr hwinfo sources mask.
  *
@@ -29,7 +51,7 @@ static uint32_t hwinfo_mcux_cmc_xlate_reset_sources(uint32_t sources)
 		mask |= RESET_LOW_POWER_WAKE;
 	}
 
-	if (sources & (CMC_SRS_POR_MASK | CMC_SRS_VBAT_MASK)) {
+	if (sources & CMC_RESET_MASK_POR) {
 		mask |= RESET_POR;
 	}
 
@@ -49,7 +71,7 @@ static uint32_t hwinfo_mcux_cmc_xlate_reset_sources(uint32_t sources)
 		mask |= RESET_CLOCK;
 	}
 
-	if (sources & (CMC_SRS_WWDT0_MASK | CMC_SRS_WWDT1_MASK)) {
+	if (sources & CMC_RESET_MASK_WATCHDOG) {
 		mask |= RESET_WATCHDOG;
 	}
 
@@ -61,13 +83,15 @@ static uint32_t hwinfo_mcux_cmc_xlate_reset_sources(uint32_t sources)
 		mask |= RESET_CPU_LOCKUP;
 	}
 
-	if (sources & (CMC_SRS_CDOG0_MASK | CMC_SRS_CDOG1_MASK)) {
+	if (sources & CMC_RESET_MASK_CDOG) {
 		mask |= RESET_WATCHDOG;
 	}
 
+#ifdef CMC_SRS_SECVIO_MASK
 	if (sources & CMC_SRS_SECVIO_MASK) {
 		mask |= RESET_SECURITY;
 	}
+#endif
 
 	return mask;
 }

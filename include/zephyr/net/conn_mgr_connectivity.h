@@ -41,9 +41,19 @@ extern "C" {
 						 NET_MGMT_EVENT_BIT)
 #define NET_MGMT_CONN_IF_EVENT			(NET_MGMT_IFACE_BIT | NET_MGMT_CONN_BASE)
 
+enum {
+	NET_EVENT_CONN_CMD_IF_TIMEOUT_VAL,
+	NET_EVENT_CONN_CMD_IF_FATAL_ERROR_VAL,
+
+	NET_EVENT_CONN_CMD_MAX
+};
+
+BUILD_ASSERT(NET_EVENT_CONN_CMD_MAX <= NET_MGMT_MAX_COMMANDS,
+	     "Number of events in net_event_conn_cmd exceeds the limit");
+
 enum net_event_conn_cmd {
-	NET_EVENT_CONN_CMD_IF_TIMEOUT = 1,
-	NET_EVENT_CONN_CMD_IF_FATAL_ERROR,
+	NET_MGMT_CMD(NET_EVENT_CONN_CMD_IF_TIMEOUT),
+	NET_MGMT_CMD(NET_EVENT_CONN_CMD_IF_FATAL_ERROR),
 };
 
 /** @endcond */
@@ -90,6 +100,12 @@ enum conn_mgr_if_flag {
 	CONN_MGR_IF_NO_AUTO_DOWN,
 
 /** @cond INTERNAL_HIDDEN */
+	/**
+	 * Internal flag indicating that the interface is in active (application initiated)
+	 * disconnect.
+	 */
+	CONN_MGR_IF_DISCONNECTING,
+
 	/* Total number of flags - must be at the end of the enum */
 	CONN_MGR_NUM_IF_FLAGS,
 /** @endcond */

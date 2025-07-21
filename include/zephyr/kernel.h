@@ -1488,13 +1488,13 @@ const char *k_thread_state_str(k_tid_t thread_id, char *buf, size_t buf_size);
  * This macro generates a timeout delay that represents an expiration
  * at the absolute uptime value specified, in system ticks.  That is, the
  * timeout will expire immediately after the system uptime reaches the
- * specified tick count.
+ * specified tick count. Value is clamped to the range 0 to INT64_MAX-1.
  *
  * @param t Tick uptime value
  * @return Timeout delay value
  */
 #define K_TIMEOUT_ABS_TICKS(t) \
-	Z_TIMEOUT_TICKS(Z_TICK_ABS((k_ticks_t)MAX(t, 0)))
+	Z_TIMEOUT_TICKS(Z_TICK_ABS((k_ticks_t)CLAMP(t, 0, (INT64_MAX - 1))))
 
 /**
  * @brief Generates an absolute/uptime timeout value from seconds
@@ -3261,10 +3261,21 @@ __syscall int k_condvar_wait(struct k_condvar *condvar, struct k_mutex *mutex,
  */
 
 /**
- * @cond INTERNAL_HIDDEN
+ * @defgroup semaphore_apis Semaphore APIs
+ * @ingroup kernel_apis
+ * @{
  */
 
+/**
+ * @brief Semaphore structure
+ *
+ * This structure is used to represent a semaphore.
+ * All the members are internal and should not be accessed directly.
+ */
 struct k_sem {
+	/**
+	 * @cond INTERNAL_HIDDEN
+	 */
 	_wait_q_t wait_q;
 	unsigned int count;
 	unsigned int limit;
@@ -3276,7 +3287,12 @@ struct k_sem {
 #ifdef CONFIG_OBJ_CORE_SEM
 	struct k_obj_core  obj_core;
 #endif
+	/** @endcond */
 };
+
+/**
+ * @cond INTERNAL_HIDDEN
+ */
 
 #define Z_SEM_INITIALIZER(obj, initial_count, count_limit) \
 	{ \
@@ -3287,13 +3303,7 @@ struct k_sem {
 	}
 
 /**
- * INTERNAL_HIDDEN @endcond
- */
-
-/**
- * @defgroup semaphore_apis Semaphore APIs
- * @ingroup kernel_apis
- * @{
+ * @endcond
  */
 
 /**
@@ -3624,6 +3634,18 @@ void k_work_queue_init(struct k_work_q *queue);
 void k_work_queue_start(struct k_work_q *queue,
 			k_thread_stack_t *stack, size_t stack_size,
 			int prio, const struct k_work_queue_config *cfg);
+
+/** @brief Run work queue using calling thread
+ *
+ * This will run the work queue forever unless stopped by @ref k_work_queue_stop.
+ *
+ * @param queue the queue to run
+ *
+ * @param cfg optional additional configuration parameters.  Pass @c
+ * NULL if not required, to use the defaults documented in
+ * k_work_queue_config.
+ */
+void k_work_queue_run(struct k_work_q *queue, const struct k_work_queue_config *cfg);
 
 /** @brief Access the thread that animates a work queue.
  *
@@ -4197,12 +4219,27 @@ struct k_work_queue_config {
 	 * essential thread.
 	 */
 	bool essential;
+
+	/** Controls whether work queue monitors work timeouts.
+	 *
+	 * If non-zero, and CONFIG_WORKQUEUE_WORK_TIMEOUT is enabled,
+	 * the work queue will monitor the duration of each work item.
+	 * If the work item handler takes longer than the specified
+	 * time to execute, the work queue thread will be aborted, and
+	 * an error will be logged if CONFIG_LOG is enabled.
+	 */
+	uint32_t work_timeout_ms;
 };
 
 /** @brief A structure used to hold work until it can be processed. */
 struct k_work_q {
 	/* The thread that animates the work. */
 	struct k_thread thread;
+
+	/* The thread ID that animates the work. This may be an external thread
+	 * if k_work_queue_run() is used.
+	 */
+	k_tid_t thread_id;
 
 	/* All the following fields must be accessed only while the
 	 * work module spinlock is held.
@@ -4219,6 +4256,12 @@ struct k_work_q {
 
 	/* Flags describing queue state. */
 	uint32_t flags;
+
+#if defined(CONFIG_WORKQUEUE_WORK_TIMEOUT)
+	struct _timeout work_timeout_record;
+	struct k_work *work;
+	k_timeout_t work_timeout;
+#endif /* defined(CONFIG_WORKQUEUE_WORK_TIMEOUT) */
 };
 
 /* Provide the implementation for inline functions declared above */
@@ -4254,7 +4297,7 @@ static inline k_ticks_t k_work_delayable_remaining_get(
 
 static inline k_tid_t k_work_queue_thread_get(struct k_work_q *queue)
 {
-	return &queue->thread;
+	return queue->thread_id;
 }
 
 /** @} */
@@ -5414,6 +5457,41 @@ struct k_mem_slab {
  */
 
 /**
+ * @brief Statically define and initialize a memory slab in a user-provided memory section with
+ * public (non-static) scope.
+ *
+ * The memory slab's buffer contains @a slab_num_blocks memory blocks
+ * that are @a slab_block_size bytes long. The buffer is aligned to a
+ * @a slab_align -byte boundary. To ensure that each memory block is similarly
+ * aligned to this boundary, @a slab_block_size must also be a multiple of
+ * @a slab_align.
+ *
+ * The memory slab can be accessed outside the module where it is defined
+ * using:
+ *
+ * @code extern struct k_mem_slab <name>; @endcode
+ *
+ * @note This macro cannot be used together with a static keyword.
+ *       If such a use-case is desired, use @ref K_MEM_SLAB_DEFINE_IN_SECT_STATIC
+ *       instead.
+ *
+ * @param name Name of the memory slab.
+ * @param in_section Section attribute specifier such as Z_GENERIC_SECTION.
+ * @param slab_block_size Size of each memory block (in bytes).
+ * @param slab_num_blocks Number memory blocks.
+ * @param slab_align Alignment of the memory slab's buffer (power of 2).
+ */
+#define K_MEM_SLAB_DEFINE_IN_SECT(name, in_section, slab_block_size, slab_num_blocks, slab_align)  \
+	BUILD_ASSERT(((slab_block_size) % (slab_align)) == 0,                                      \
+		     "slab_block_size must be a multiple of slab_align");                          \
+	BUILD_ASSERT((((slab_align) & ((slab_align) - 1)) == 0),                                   \
+		     "slab_align must be a power of 2");                                           \
+	char in_section __aligned(WB_UP(                                                           \
+		slab_align)) _k_mem_slab_buf_##name[(slab_num_blocks) * WB_UP(slab_block_size)];   \
+	STRUCT_SECTION_ITERABLE(k_mem_slab, name) = Z_MEM_SLAB_INITIALIZER(                        \
+		name, _k_mem_slab_buf_##name, WB_UP(slab_block_size), slab_num_blocks)
+
+/**
  * @brief Statically define and initialize a memory slab in a public (non-static) scope.
  *
  * The memory slab's buffer contains @a slab_num_blocks memory blocks
@@ -5436,13 +5514,36 @@ struct k_mem_slab {
  * @param slab_num_blocks Number memory blocks.
  * @param slab_align Alignment of the memory slab's buffer (power of 2).
  */
-#define K_MEM_SLAB_DEFINE(name, slab_block_size, slab_num_blocks, slab_align) \
-	char __noinit_named(k_mem_slab_buf_##name) \
-	   __aligned(WB_UP(slab_align)) \
-	   _k_mem_slab_buf_##name[(slab_num_blocks) * WB_UP(slab_block_size)]; \
-	STRUCT_SECTION_ITERABLE(k_mem_slab, name) = \
-		Z_MEM_SLAB_INITIALIZER(name, _k_mem_slab_buf_##name, \
-					WB_UP(slab_block_size), slab_num_blocks)
+#define K_MEM_SLAB_DEFINE(name, slab_block_size, slab_num_blocks, slab_align)                      \
+	K_MEM_SLAB_DEFINE_IN_SECT(name, __noinit_named(k_mem_slab_buf_##name), slab_block_size,    \
+				  slab_num_blocks, slab_align)
+
+/**
+ * @brief Statically define and initialize a memory slab in a user-provided memory section with
+ * private (static) scope.
+ *
+ * The memory slab's buffer contains @a slab_num_blocks memory blocks
+ * that are @a slab_block_size bytes long. The buffer is aligned to a
+ * @a slab_align -byte boundary. To ensure that each memory block is similarly
+ * aligned to this boundary, @a slab_block_size must also be a multiple of
+ * @a slab_align.
+ *
+ * @param name Name of the memory slab.
+ * @param in_section Section attribute specifier such as Z_GENERIC_SECTION.
+ * @param slab_block_size Size of each memory block (in bytes).
+ * @param slab_num_blocks Number memory blocks.
+ * @param slab_align Alignment of the memory slab's buffer (power of 2).
+ */
+#define K_MEM_SLAB_DEFINE_IN_SECT_STATIC(name, in_section, slab_block_size, slab_num_blocks,       \
+					 slab_align)                                               \
+	BUILD_ASSERT(((slab_block_size) % (slab_align)) == 0,                                      \
+		     "slab_block_size must be a multiple of slab_align");                          \
+	BUILD_ASSERT((((slab_align) & ((slab_align) - 1)) == 0),                                   \
+		     "slab_align must be a power of 2");                                           \
+	static char in_section __aligned(WB_UP(                                                    \
+		slab_align)) _k_mem_slab_buf_##name[(slab_num_blocks) * WB_UP(slab_block_size)];   \
+	static STRUCT_SECTION_ITERABLE(k_mem_slab, name) = Z_MEM_SLAB_INITIALIZER(                 \
+		name, _k_mem_slab_buf_##name, WB_UP(slab_block_size), slab_num_blocks)
 
 /**
  * @brief Statically define and initialize a memory slab in a private (static) scope.
@@ -5458,13 +5559,9 @@ struct k_mem_slab {
  * @param slab_num_blocks Number memory blocks.
  * @param slab_align Alignment of the memory slab's buffer (power of 2).
  */
-#define K_MEM_SLAB_DEFINE_STATIC(name, slab_block_size, slab_num_blocks, slab_align) \
-	static char __noinit_named(k_mem_slab_buf_##name) \
-	   __aligned(WB_UP(slab_align)) \
-	   _k_mem_slab_buf_##name[(slab_num_blocks) * WB_UP(slab_block_size)]; \
-	static STRUCT_SECTION_ITERABLE(k_mem_slab, name) = \
-		Z_MEM_SLAB_INITIALIZER(name, _k_mem_slab_buf_##name, \
-					WB_UP(slab_block_size), slab_num_blocks)
+#define K_MEM_SLAB_DEFINE_STATIC(name, slab_block_size, slab_num_blocks, slab_align)               \
+	K_MEM_SLAB_DEFINE_IN_SECT_STATIC(name, __noinit_named(k_mem_slab_buf_##name),              \
+					 slab_block_size, slab_num_blocks, slab_align)
 
 /**
  * @brief Initialize a memory slab.
@@ -5763,7 +5860,7 @@ void k_heap_free(struct k_heap *h, void *mem) __attribute_nonnull(1);
  *
  * @param name Symbol name for the struct k_heap object
  * @param bytes Size of memory region, in bytes
- * @param in_section __attribute__((section(name))
+ * @param in_section Section attribute specifier such as Z_GENERIC_SECTION.
  */
 #define Z_HEAP_DEFINE_IN_SECT(name, bytes, in_section)		\
 	char in_section						\
@@ -5810,6 +5907,17 @@ void k_heap_free(struct k_heap *h, void *mem) __attribute_nonnull(1);
  */
 #define K_HEAP_DEFINE_NOCACHE(name, bytes)			\
 	Z_HEAP_DEFINE_IN_SECT(name, bytes, __nocache)
+
+/** @brief Get the array of statically defined heaps
+ *
+ * Returns the pointer to the start of the static heap array.
+ * Static heaps are those declared through one of the `K_HEAP_DEFINE`
+ * macros.
+ *
+ * @param heap Pointer to location where heap array address is written
+ * @return Number of static heaps
+ */
+int k_heap_array_get(struct k_heap **heap);
 
 /**
  * @}
@@ -6303,7 +6411,7 @@ static inline void k_cpu_atomic_idle(unsigned int key)
  * This should be called when a thread has encountered an unrecoverable
  * runtime condition and needs to terminate. What this ultimately
  * means is determined by the _fatal_error_handler() implementation, which
- * will be called will reason code K_ERR_KERNEL_OOPS.
+ * will be called with reason code K_ERR_KERNEL_OOPS.
  *
  * If this is called from ISR context, the default system fatal error handler
  * will treat it as an unrecoverable system error, just like k_panic().
@@ -6316,7 +6424,7 @@ static inline void k_cpu_atomic_idle(unsigned int key)
  * This should be called when the Zephyr kernel has encountered an
  * unrecoverable runtime condition and needs to terminate. What this ultimately
  * means is determined by the _fatal_error_handler() implementation, which
- * will be called will reason code K_ERR_KERNEL_PANIC.
+ * will be called with reason code K_ERR_KERNEL_PANIC.
  */
 #define k_panic()	z_except_reason(K_ERR_KERNEL_PANIC)
 

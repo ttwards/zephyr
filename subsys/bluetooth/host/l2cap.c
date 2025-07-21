@@ -46,6 +46,7 @@ LOG_MODULE_REGISTER(bt_l2cap, CONFIG_BT_L2CAP_LOG_LEVEL);
 #define CHAN_RX(_w) CONTAINER_OF(_w, struct bt_l2cap_le_chan, rx_work)
 
 #define L2CAP_LE_MIN_MTU		23
+#define L2CAP_LE_MIN_MPS		23
 
 #define L2CAP_LE_MAX_CREDITS		(BT_BUF_ACL_RX_COUNT - 1)
 
@@ -83,11 +84,6 @@ NET_BUF_POOL_FIXED_DEFINE(disc_pool, 1,
 #define l2cap_remove_ident(conn, ident) __l2cap_lookup_ident(conn, ident, true)
 
 static sys_slist_t servers = SYS_SLIST_STATIC_INIT(&servers);
-
-static void l2cap_tx_buf_destroy(struct bt_conn *conn, struct net_buf *buf, int err)
-{
-	net_buf_unref(buf);
-}
 #endif /* CONFIG_BT_L2CAP_DYNAMIC_CHANNEL */
 
 /* L2CAP signalling channel specific context */
@@ -257,6 +253,7 @@ void bt_l2cap_chan_del(struct bt_l2cap_chan *chan)
 {
 	const struct bt_l2cap_chan_ops *ops = chan->ops;
 	struct bt_l2cap_le_chan *le_chan = BT_L2CAP_LE_CHAN(chan);
+	struct net_buf *buf;
 
 	LOG_DBG("conn %p chan %p", chan->conn, chan);
 
@@ -269,9 +266,7 @@ void bt_l2cap_chan_del(struct bt_l2cap_chan *chan)
 	/* Remove buffers on the PDU TX queue. We can't do that in
 	 * `l2cap_chan_destroy()` as it is not called for fixed channels.
 	 */
-	while (chan_has_data(le_chan)) {
-		struct net_buf *buf = k_fifo_get(&le_chan->tx_queue, K_NO_WAIT);
-
+	while ((buf = k_fifo_get(&le_chan->tx_queue, K_NO_WAIT))) {
 		net_buf_unref(buf);
 	}
 
@@ -919,20 +914,22 @@ struct net_buf *l2cap_data_pull(struct bt_conn *conn,
 	 * For SDUs we do the same, we keep it in the queue until all the
 	 * segments have been sent, adding the PDU headers just-in-time.
 	 */
-	struct net_buf *pdu = k_fifo_peek_head(&lechan->tx_queue);
+	struct net_buf *fifo_pdu = k_fifo_peek_head(&lechan->tx_queue);
 
 	/* We don't have anything to send for the current channel. We could
 	 * however have something to send on another channel that is attached to
 	 * the same ACL connection. Re-trigger the TX processor: it will call us
 	 * again and this time we will select another channel to pull data from.
 	 */
-	if (!pdu) {
+	if (!fifo_pdu) {
 		bt_tx_irq_raise();
 		return NULL;
 	}
 
-	if (bt_buf_has_view(pdu)) {
-		LOG_ERR("already have view on %p", pdu);
+	__ASSERT_NO_MSG(conn->state == BT_CONN_CONNECTED);
+
+	if (bt_buf_has_view(fifo_pdu)) {
+		LOG_ERR("already have view on %p", fifo_pdu);
 		return NULL;
 	}
 
@@ -945,6 +942,8 @@ struct net_buf *l2cap_data_pull(struct bt_conn *conn,
 		lower_data_ready(lechan);
 		return NULL;
 	}
+
+	struct net_buf *pdu = net_buf_ref(fifo_pdu);
 
 	/* Add PDU header */
 	if (lechan->_pdu_remaining == 0) {
@@ -975,9 +974,11 @@ struct net_buf *l2cap_data_pull(struct bt_conn *conn,
 
 	if (last_frag && last_seg) {
 		LOG_DBG("last frag of last seg, dequeuing %p", pdu);
-		__maybe_unused struct net_buf *b = k_fifo_get(&lechan->tx_queue, K_NO_WAIT);
+		fifo_pdu = k_fifo_get(&lechan->tx_queue, K_NO_WAIT);
 
-		__ASSERT_NO_MSG(b == pdu);
+		__ASSERT_NO_MSG(fifo_pdu == pdu);
+
+		net_buf_unref(fifo_pdu);
 	}
 
 	if (last_frag && L2CAP_LE_CID_IS_DYN(lechan->tx.cid)) {
@@ -1049,8 +1050,9 @@ static void le_conn_param_rsp(struct bt_l2cap *l2cap, struct net_buf *buf)
 {
 	struct bt_l2cap_conn_param_rsp *rsp = (void *)buf->data;
 
-	if (buf->len < sizeof(*rsp)) {
-		LOG_ERR("Too small LE conn param rsp");
+	if (buf->len != sizeof(*rsp)) {
+		LOG_ERR("Invalid LE conn param rsp size (%u != %zu)",
+			buf->len, sizeof(*rsp));
 		return;
 	}
 
@@ -1066,8 +1068,9 @@ static void le_conn_param_update_req(struct bt_l2cap *l2cap, uint8_t ident,
 	struct bt_l2cap_conn_param_req *req = (void *)buf->data;
 	bool accepted;
 
-	if (buf->len < sizeof(*req)) {
-		LOG_ERR("Too small LE conn update param req");
+	if (buf->len != sizeof(*req)) {
+		LOG_ERR("Invalid LE conn update param req size (%u != %zu)",
+			buf->len, sizeof(*req));
 		return;
 	}
 
@@ -1458,8 +1461,9 @@ static void le_conn_req(struct bt_l2cap *l2cap, uint8_t ident,
 	uint16_t psm, scid, mtu, mps, credits;
 	uint16_t result;
 
-	if (buf->len < sizeof(*req)) {
-		LOG_ERR("Too small LE conn req packet size");
+	if (buf->len != sizeof(*req)) {
+		LOG_ERR("Invalid LE conn req packet size (%u != %zu)",
+			buf->len, sizeof(*req));
 		return;
 	}
 
@@ -1471,7 +1475,7 @@ static void le_conn_req(struct bt_l2cap *l2cap, uint8_t ident,
 
 	LOG_DBG("psm 0x%02x scid 0x%04x mtu %u mps %u credits %u", psm, scid, mtu, mps, credits);
 
-	if (mtu < L2CAP_LE_MIN_MTU || mps < L2CAP_LE_MIN_MTU) {
+	if (mtu < L2CAP_LE_MIN_MTU || mps < L2CAP_LE_MIN_MPS) {
 		LOG_ERR("Invalid LE-Conn Req params: mtu %u mps %u", mtu, mps);
 		return;
 	}
@@ -1570,7 +1574,7 @@ static void le_ecred_conn_req(struct bt_l2cap *l2cap, uint8_t ident,
 
 	LOG_DBG("psm 0x%02x mtu %u mps %u credits %u", psm, mtu, mps, credits);
 
-	if (mtu < BT_L2CAP_ECRED_MIN_MTU || mps < BT_L2CAP_ECRED_MIN_MTU) {
+	if (mtu < BT_L2CAP_ECRED_MIN_MTU || mps < BT_L2CAP_ECRED_MIN_MPS) {
 		LOG_ERR("Invalid ecred conn req params. mtu %u mps %u", mtu, mps);
 		result = BT_L2CAP_LE_ERR_INVALID_PARAMS;
 		goto response;
@@ -1678,7 +1682,7 @@ static void le_ecred_reconf_req(struct bt_l2cap *l2cap, uint8_t ident,
 	mtu = sys_le16_to_cpu(req->mtu);
 	mps = sys_le16_to_cpu(req->mps);
 
-	if (mps < BT_L2CAP_ECRED_MIN_MTU) {
+	if (mps < BT_L2CAP_ECRED_MIN_MPS) {
 		result = BT_L2CAP_RECONF_OTHER_UNACCEPT;
 		goto response;
 	}
@@ -1759,8 +1763,9 @@ static void le_ecred_reconf_rsp(struct bt_l2cap *l2cap, uint8_t ident,
 	struct bt_l2cap_le_chan *ch;
 	uint16_t result;
 
-	if (buf->len < sizeof(*rsp)) {
-		LOG_ERR("Too small ecred reconf rsp packet size");
+	if (buf->len != sizeof(*rsp)) {
+		LOG_ERR("Invalid ecred reconf rsp packet size (%u != %zu)",
+			buf->len, sizeof(*rsp));
 		return;
 	}
 
@@ -1820,8 +1825,9 @@ static void le_disconn_req(struct bt_l2cap *l2cap, uint8_t ident,
 	struct bt_l2cap_disconn_rsp *rsp;
 	uint16_t dcid;
 
-	if (buf->len < sizeof(*req)) {
-		LOG_ERR("Too small LE conn req packet size");
+	if (buf->len != sizeof(*req)) {
+		LOG_ERR("Invalid LE conn req packet size (%u != %zu)",
+			buf->len, sizeof(*req));
 		return;
 	}
 
@@ -2039,8 +2045,9 @@ static void le_conn_rsp(struct bt_l2cap *l2cap, uint8_t ident,
 	struct bt_l2cap_le_conn_rsp *rsp = (void *)buf->data;
 	uint16_t dcid, mtu, mps, credits, result;
 
-	if (buf->len < sizeof(*rsp)) {
-		LOG_ERR("Too small LE conn rsp packet size");
+	if (buf->len != sizeof(*rsp)) {
+		LOG_ERR("Invalid LE conn rsp packet size (%u != %zu)",
+			buf->len, sizeof(*rsp));
 		return;
 	}
 
@@ -2111,8 +2118,9 @@ static void le_disconn_rsp(struct bt_l2cap *l2cap, uint8_t ident,
 	struct bt_l2cap_disconn_rsp *rsp = (void *)buf->data;
 	uint16_t scid;
 
-	if (buf->len < sizeof(*rsp)) {
-		LOG_ERR("Too small LE disconn rsp packet size");
+	if (buf->len != sizeof(*rsp)) {
+		LOG_ERR("Invalid LE disconn rsp packet size (%u != %zu)",
+			buf->len, sizeof(*rsp));
 		return;
 	}
 
@@ -2137,8 +2145,9 @@ static void le_credits(struct bt_l2cap *l2cap, uint8_t ident,
 	struct bt_l2cap_le_chan *le_chan;
 	uint16_t credits, cid;
 
-	if (buf->len < sizeof(*ev)) {
-		LOG_ERR("Too small LE Credits packet size");
+	if (buf->len != sizeof(*ev)) {
+		LOG_ERR("Invalid LE Credits packet size (%u != %zu)",
+			buf->len, sizeof(*ev));
 		return;
 	}
 
@@ -2282,7 +2291,7 @@ static void l2cap_chan_shutdown(struct bt_l2cap_chan *chan)
 
 	/* Remove buffers on the TX queue */
 	while ((buf = k_fifo_get(&le_chan->tx_queue, K_NO_WAIT))) {
-		l2cap_tx_buf_destroy(chan->conn, buf, -ESHUTDOWN);
+		net_buf_unref(buf);
 	}
 
 	/* Remove buffers on the RX queue */

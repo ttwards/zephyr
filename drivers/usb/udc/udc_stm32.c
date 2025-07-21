@@ -51,7 +51,7 @@ LOG_MODULE_REGISTER(udc_stm32, CONFIG_UDC_DRIVER_LOG_LEVEL);
  * The following defines are used to map the value of the "maxiumum-speed"
  * DT property to the corresponding definition used by the STM32 HAL.
  */
-#if defined(CONFIG_SOC_SERIES_STM32H7X) || defined(USB_OTG_HS_EMB_PHY)
+#if defined(CONFIG_SOC_SERIES_STM32H7X) || USB_OTG_HS_EMB_PHY
 #define UDC_STM32_HIGH_SPEED             USB_OTG_SPEED_HIGH_IN_FULL
 #else
 #define UDC_STM32_HIGH_SPEED             USB_OTG_SPEED_HIGH
@@ -61,6 +61,10 @@ LOG_MODULE_REGISTER(udc_stm32, CONFIG_UDC_DRIVER_LOG_LEVEL);
 #define UDC_STM32_FULL_SPEED             PCD_SPEED_FULL
 #else
 #define UDC_STM32_FULL_SPEED             USB_OTG_SPEED_FULL
+#endif
+
+#if DT_HAS_COMPAT_STATUS_OKAY(st_stm32n6_otghs)
+#define USB_USBPHYC_CR_FSEL_24MHZ        USB_USBPHYC_CR_FSEL_1
 #endif
 
 struct udc_stm32_data  {
@@ -178,7 +182,7 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd)
 {
 	struct udc_stm32_data *priv = hpcd2data(hpcd);
 
-	udc_submit_event(priv->dev, UDC_EVT_SOF, 0);
+	udc_submit_sof_event(priv->dev);
 }
 
 static int usbd_ctrl_feed_dout(const struct device *dev, const size_t length)
@@ -1140,9 +1144,21 @@ static int priv_clock_enable(void)
 #elif defined(CONFIG_SOC_SERIES_STM32U5X)
 	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_USBPHY);
 	/* Both OTG HS and USBPHY sleep clock MUST be disabled here at the same time */
-	LL_AHB2_GRP1_DisableClockStopSleep(LL_AHB2_GRP1_PERIPH_OTG_HS ||
+	LL_AHB2_GRP1_DisableClockStopSleep(LL_AHB2_GRP1_PERIPH_OTG_HS |
 						LL_AHB2_GRP1_PERIPH_USBPHY);
-#elif !DT_HAS_COMPAT_STATUS_OKAY(st_stm32n6_otghs)
+#elif DT_HAS_COMPAT_STATUS_OKAY(st_stm32n6_otghs)
+	/* Reset specific configuration bits before setting new values */
+	USB1_HS_PHYC->USBPHYC_CR &= ~USB_USBPHYC_CR_FSEL_Msk;
+
+	/* Configure the USB PHY Control Register to operate in the High frequency "24 MHz"
+	 * by setting the Frequency Selection (FSEL) bits 4 and 5 to 10,
+	 * which ensures proper communication.
+	 */
+	USB1_HS_PHYC->USBPHYC_CR |= USB_USBPHYC_CR_FSEL_24MHZ;
+
+	/* Peripheral OTGPHY clock enable */
+	LL_AHB5_GRP1_EnableClock(LL_AHB5_GRP1_PERIPH_OTGPHY1);
+#else
 	LL_AHB1_GRP1_DisableClockLowPower(LL_AHB1_GRP1_PERIPH_OTGHSULPI);
 #endif /* defined(CONFIG_SOC_SERIES_STM32H7X) */
 

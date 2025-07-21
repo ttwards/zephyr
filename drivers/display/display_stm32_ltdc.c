@@ -55,7 +55,7 @@ LOG_MODULE_REGISTER(display_stm32_ltdc, CONFIG_DISPLAY_LOG_LEVEL);
 #elif CONFIG_STM32_LTDC_RGB565
 #define STM32_LTDC_INIT_PIXEL_SIZE	2u
 #define STM32_LTDC_INIT_PIXEL_FORMAT	LTDC_PIXEL_FORMAT_RGB565
-#define DISPLAY_INIT_PIXEL_FORMAT	PIXEL_FORMAT_RGB_565
+#define DISPLAY_INIT_PIXEL_FORMAT	PIXEL_FORMAT_BGR_565
 #else
 #error "Invalid LTDC pixel format chosen"
 #endif
@@ -110,9 +110,9 @@ static int stm32_ltdc_set_pixel_format(const struct device *dev,
 	struct display_stm32_ltdc_data *data = dev->data;
 
 	switch (format) {
-	case PIXEL_FORMAT_RGB_565:
+	case PIXEL_FORMAT_BGR_565:
 		err = HAL_LTDC_SetPixelFormat(&data->hltdc, LTDC_PIXEL_FORMAT_RGB565, 0);
-		data->current_pixel_format = PIXEL_FORMAT_RGB_565;
+		data->current_pixel_format = PIXEL_FORMAT_BGR_565;
 		data->current_pixel_size = 2u;
 		break;
 	case PIXEL_FORMAT_RGB_888:
@@ -124,6 +124,7 @@ static int stm32_ltdc_set_pixel_format(const struct device *dev,
 		err = HAL_LTDC_SetPixelFormat(&data->hltdc, LTDC_PIXEL_FORMAT_ARGB8888, 0);
 		data->current_pixel_format = PIXEL_FORMAT_ARGB_8888;
 		data->current_pixel_size = 4u;
+		break;
 	default:
 		err = -ENOTSUP;
 		break;
@@ -157,7 +158,7 @@ static void stm32_ltdc_get_capabilities(const struct device *dev,
 				     data->hltdc.LayerCfg[0].WindowY0;
 	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
 					PIXEL_FORMAT_RGB_888 |
-					PIXEL_FORMAT_RGB_565;
+					PIXEL_FORMAT_BGR_565;
 	capabilities->screen_info = 0;
 
 	capabilities->current_pixel_format = data->current_pixel_format;
@@ -444,7 +445,7 @@ static int stm32_ltdc_init(const struct device *dev)
 #if defined(CONFIG_STM32_LTDC_FB_USE_SHARED_MULTI_HEAP)
 	data->frame_buffer = shared_multi_heap_aligned_alloc(
 			CONFIG_STM32_LTDC_FB_SMH_ATTRIBUTE,
-			32,
+			CONFIG_STM32_LTDC_FB_SMH_ALIGN,
 			CONFIG_STM32_LTDC_FB_NUM * data->frame_buffer_len);
 
 	if (data->frame_buffer == NULL) {
@@ -467,7 +468,7 @@ static int stm32_ltdc_init(const struct device *dev)
 	/* Configure RIF for LTDC layer 1 */
 	rimc.MasterCID = RIF_CID_1;
 	rimc.SecPriv = RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV;
-	HAL_RIF_RIMC_ConfigMasterAttributes(RIF_MASTER_INDEX_LTDC1 , &rimc);
+	HAL_RIF_RIMC_ConfigMasterAttributes(RIF_MASTER_INDEX_LTDC1, &rimc);
 	HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_LTDCL1,
 					      RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
 #endif
@@ -560,7 +561,8 @@ static DEVICE_API(display, stm32_ltdc_display_api) = {
 #elif DT_SAME_NODE(DT_INST_PHANDLE(0, ext_sdram), DT_NODELABEL(psram))
 #define FRAME_BUFFER_SECTION __stm32_psram_section
 #else
-#error "LTDC ext-sdram property in device tree does not reference SDRAM1 or SDRAM2 node or PSRAM node"
+#error "LTDC ext-sdram property in device tree does not reference SDRAM1 or SDRAM2 node or PSRAM "\
+	"node"
 #define FRAME_BUFFER_SECTION
 #endif /* DT_SAME_NODE(DT_INST_PHANDLE(0, ext_sdram), DT_NODELABEL(sdram1)) */
 

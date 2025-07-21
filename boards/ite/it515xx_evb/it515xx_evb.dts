@@ -149,3 +149,15 @@
 	pinctrl-0 = <&tach0a_gpd6_default>;
 	pinctrl-names = "default";
 };
+
+&sha256 {
+	status = "okay";
+};
+
+/* voltage comparator for test */
+&vcmp1 {
+	status = "okay";
+	threshold-mv = <1500>;
+	scan-period = <0x4>;
+	io-channels = <&adc0 3>;
+};

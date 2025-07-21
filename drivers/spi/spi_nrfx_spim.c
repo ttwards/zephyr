@@ -43,9 +43,9 @@ LOG_MODULE_REGISTER(spi_nrfx_spim, CONFIG_SPI_LOG_LEVEL);
 #define SPI_BUFFER_IN_RAM 1
 #endif
 
-#if defined(CONFIG_CLOCK_CONTROL_NRF2_GLOBAL_HSFLL)
+#if defined(CONFIG_CLOCK_CONTROL_NRF_HSFLL_GLOBAL)
 #define SPIM_REQUESTS_CLOCK(node) \
-	DT_NODE_HAS_COMPAT(DT_NODELABEL(DT_CLOCKS_CTLR(node)), nordic_nrf_hsfll_global)
+	DT_NODE_HAS_COMPAT(DT_CLOCKS_CTLR(node), nordic_nrf_hsfll_global)
 #define SPIM_REQUESTS_CLOCK_OR(node) SPIM_REQUESTS_CLOCK(node) ||
 #if (DT_FOREACH_STATUS_OKAY(nordic_nrf_spim, SPIM_REQUESTS_CLOCK_OR) 0)
 #define USE_CLOCK_REQUESTS 1
@@ -56,7 +56,7 @@ LOG_MODULE_REGISTER(spi_nrfx_spim, CONFIG_SPI_LOG_LEVEL);
 BUILD_ASSERT(!IS_ENABLED(CONFIG_PM_DEVICE_SYSTEM_MANAGED));
 #endif
 #else
-#define SPIM_REQUESTS_CLOCK(idx) 0
+#define SPIM_REQUESTS_CLOCK(node) 0
 #endif
 
 struct spi_nrfx_data {
@@ -154,30 +154,30 @@ static inline void finalize_spi_transaction(const struct device *dev, bool deact
 	void *reg = dev_config->spim.p_reg;
 
 	if (deactivate_cs) {
-		/*
-		 * We may suspend SPI only if we don't have to keep CS asserted, as we
-		 * need to keep the CS GPIO port resumed until spi_release() in this case.
-		 */
 		spi_context_cs_control(&dev_data->ctx, false);
-		pm_device_runtime_put_async(dev, K_NO_WAIT);
 	}
 
 	if (NRF_SPIM_IS_320MHZ_SPIM(reg) && !(dev_data->ctx.config->operation & SPI_HOLD_ON_CS)) {
 		nrfy_spim_disable(reg);
 	}
 
-	if (!IS_ENABLED(CONFIG_PM_DEVICE_RUNTIME)) {
+	if (!pm_device_runtime_is_enabled(dev)) {
 		release_clock(dev);
 	}
+
+	pm_device_runtime_put_async(dev, K_NO_WAIT);
 }
 
 static inline uint32_t get_nrf_spim_frequency(uint32_t frequency)
 {
+	if (NRF_SPIM_HAS_PRESCALER) {
+		return frequency;
+	}
 	/* Get the highest supported frequency not exceeding the requested one.
 	 */
-	if (frequency >= MHZ(32) && (NRF_SPIM_HAS_32_MHZ_FREQ || NRF_SPIM_HAS_PRESCALER)) {
+	if (frequency >= MHZ(32) && NRF_SPIM_HAS_32_MHZ_FREQ) {
 		return MHZ(32);
-	} else if (frequency >= MHZ(16) && (NRF_SPIM_HAS_16_MHZ_FREQ || NRF_SPIM_HAS_PRESCALER)) {
+	} else if (frequency >= MHZ(16) && NRF_SPIM_HAS_16_MHZ_FREQ) {
 		return MHZ(16);
 	} else if (frequency >= MHZ(8)) {
 		return MHZ(8);
@@ -406,7 +406,12 @@ static void finish_transaction(const struct device *dev, int error)
 	spi_context_complete(ctx, dev, error);
 	dev_data->busy = false;
 
-	finalize_spi_transaction(dev, (dev_data->ctx.config->operation & SPI_HOLD_ON_CS) > 0);
+	if (dev_data->ctx.config->operation & SPI_LOCK_ON) {
+		/* Keep device resumed until call to spi_release() */
+		(void)pm_device_runtime_get(dev);
+	}
+
+	finalize_spi_transaction(dev, true);
 }
 
 static void transfer_next_chunk(const struct device *dev)
@@ -548,7 +553,7 @@ static int transceive(const struct device *dev,
 
 	error = configure(dev, spi_cfg);
 
-	if (error == 0 && !IS_ENABLED(CONFIG_PM_DEVICE_RUNTIME)) {
+	if (error == 0 && !pm_device_runtime_is_enabled(dev)) {
 		error = request_clock(dev);
 	}
 
@@ -596,7 +601,11 @@ static int transceive(const struct device *dev,
 			finish_transaction(dev, -ETIMEDOUT);
 
 			/* Clean up the driver state. */
+#ifdef CONFIG_MULTITHREADING
 			k_sem_reset(&dev_data->ctx.sync);
+#else
+			dev_data->ctx.ready = 0;
+#endif /* CONFIG_MULTITHREADING */
 #ifdef CONFIG_SOC_NRF52832_ALLOW_SPIM_DESPITE_PAN_58
 			anomaly_58_workaround_clear(dev_data);
 #endif
@@ -680,7 +689,7 @@ static int spim_resume(const struct device *dev)
 	nrf_gpd_retain_pins_set(dev_config->pcfg, false);
 #endif
 
-	return IS_ENABLED(CONFIG_PM_DEVICE_RUNTIME) ? request_clock(dev) : 0;
+	return pm_device_runtime_is_enabled(dev) ? request_clock(dev) : 0;
 }
 
 static void spim_suspend(const struct device *dev)
@@ -693,7 +702,7 @@ static void spim_suspend(const struct device *dev)
 		dev_data->initialized = false;
 	}
 
-	if (IS_ENABLED(CONFIG_PM_DEVICE_RUNTIME)) {
+	if (pm_device_runtime_is_enabled(dev)) {
 		release_clock(dev);
 	}
 
@@ -725,10 +734,10 @@ static int spi_nrfx_init(const struct device *dev)
 	struct spi_nrfx_data *dev_data = dev->data;
 	int err;
 
-	err = pinctrl_apply_state(dev_config->pcfg, PINCTRL_STATE_DEFAULT);
-	if (err < 0) {
-		return err;
-	}
+	/* Apply sleep state by default.
+	 * If PM is disabled, the default state will be applied in pm_device_driver_init.
+	 */
+	(void)pinctrl_apply_state(dev_config->pcfg, PINCTRL_STATE_SLEEP);
 
 	if (dev_config->wake_pin != WAKE_PIN_NOT_USED) {
 		err = spi_nrfx_wake_init(&dev_config->wake_gpiote, dev_config->wake_pin);
@@ -759,6 +768,28 @@ static int spi_nrfx_init(const struct device *dev)
 #endif
 	return pm_device_driver_init(dev, spim_nrfx_pm_action);
 }
+
+static int spi_nrfx_deinit(const struct device *dev)
+{
+#if defined(CONFIG_PM_DEVICE)
+	enum pm_device_state state;
+
+	/*
+	 * PM must have suspended the device before driver can
+	 * be deinitialized
+	 */
+	(void)pm_device_state_get(dev, &state);
+	return state == PM_DEVICE_STATE_SUSPENDED ||
+	       state == PM_DEVICE_STATE_OFF ?
+	       0 : -EBUSY;
+#else
+	/* PM suspend implementation does everything we need */
+	spim_suspend(dev);
+#endif
+
+	return 0;
+}
+
 /*
  * We use NODELABEL here because the nrfx API requires us to call
  * functions which are named according to SoC peripheral instance
@@ -790,11 +821,11 @@ static int spi_nrfx_init(const struct device *dev)
  * must be initialized after that controller driver, hence the default SPI
  * initialization priority may be too early for them.
  */
-#if defined(CONFIG_CLOCK_CONTROL_NRF2_GLOBAL_HSFLL_INIT_PRIORITY) && \
-	CONFIG_SPI_INIT_PRIORITY < CONFIG_CLOCK_CONTROL_NRF2_GLOBAL_HSFLL_INIT_PRIORITY
+#if defined(CONFIG_CLOCK_CONTROL_NRF_HSFLL_GLOBAL_INIT_PRIORITY) && \
+	CONFIG_SPI_INIT_PRIORITY < CONFIG_CLOCK_CONTROL_NRF_HSFLL_GLOBAL_INIT_PRIORITY
 #define SPIM_INIT_PRIORITY(idx) \
-	COND_CODE_1(SPIM_REQUESTS_CLOCK(idx), \
-		(UTIL_INC(CONFIG_CLOCK_CONTROL_NRF2_GLOBAL_HSFLL_INIT_PRIORITY)), \
+	COND_CODE_1(SPIM_REQUESTS_CLOCK(SPIM(idx)), \
+		(UTIL_INC(CONFIG_CLOCK_CONTROL_NRF_HSFLL_GLOBAL_INIT_PRIORITY)), \
 		(CONFIG_SPI_INIT_PRIORITY))
 #else
 #define SPIM_INIT_PRIORITY(idx) CONFIG_SPI_INIT_PRIORITY
@@ -815,8 +846,10 @@ static int spi_nrfx_init(const struct device *dev)
 			[CONFIG_SPI_NRFX_RAM_BUFFER_SIZE]		       \
 			SPIM_MEMORY_SECTION(idx);))			       \
 	static struct spi_nrfx_data spi_##idx##_data = {		       \
-		SPI_CONTEXT_INIT_LOCK(spi_##idx##_data, ctx),		       \
-		SPI_CONTEXT_INIT_SYNC(spi_##idx##_data, ctx),		       \
+		IF_ENABLED(CONFIG_MULTITHREADING,			       \
+			(SPI_CONTEXT_INIT_LOCK(spi_##idx##_data, ctx),))       \
+		IF_ENABLED(CONFIG_MULTITHREADING,			       \
+			(SPI_CONTEXT_INIT_SYNC(spi_##idx##_data, ctx),))       \
 		SPI_CONTEXT_CS_GPIOS_INITIALIZE(SPIM(idx), ctx)		       \
 		IF_ENABLED(SPI_BUFFER_IN_RAM,				       \
 			(.tx_buffer = spim_##idx##_tx_buffer,		       \
@@ -850,8 +883,8 @@ static int spi_nrfx_init(const struct device *dev)
 		.wake_gpiote = WAKE_GPIOTE_INSTANCE(SPIM(idx)),		       \
 		IF_ENABLED(CONFIG_DCACHE,				       \
 			(.mem_attr = SPIM_GET_MEM_ATTR(idx),))		       \
-		IF_ENABLED(USE_CLOCK_REQUESTS,			       \
-			(.clk_dev = SPIM_REQUESTS_CLOCK(idx)		       \
+		IF_ENABLED(USE_CLOCK_REQUESTS,				       \
+			(.clk_dev = SPIM_REQUESTS_CLOCK(SPIM(idx))	       \
 				  ? DEVICE_DT_GET(DT_CLOCKS_CTLR(SPIM(idx)))   \
 				  : NULL,				       \
 			 .clk_spec = {					       \
@@ -862,8 +895,9 @@ static int spi_nrfx_init(const struct device *dev)
 		     !(DT_GPIO_FLAGS(SPIM(idx), wake_gpios) & GPIO_ACTIVE_LOW),\
 		     "WAKE line must be configured as active high");	       \
 	PM_DEVICE_DT_DEFINE(SPIM(idx), spim_nrfx_pm_action);		       \
-	SPI_DEVICE_DT_DEFINE(SPIM(idx),					       \
+	SPI_DEVICE_DT_DEINIT_DEFINE(SPIM(idx),				       \
 		      spi_nrfx_init,					       \
+		      spi_nrfx_deinit,					       \
 		      PM_DEVICE_DT_GET(SPIM(idx)),			       \
 		      &spi_##idx##_data,				       \
 		      &spi_##idx##z_config,				       \

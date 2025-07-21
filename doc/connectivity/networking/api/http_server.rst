@@ -83,8 +83,7 @@ using CMake:
 
     zephyr_linker_sources(SECTIONS sections-rom.ld)
     zephyr_linker_section(NAME http_resource_desc_my_service
-                          KVMA RAM_REGION GROUP RODATA_REGION
-                          SUBALIGN ${CONFIG_LINKER_ITERABLE_SUBALIGN})
+                          KVMA RAM_REGION GROUP RODATA_REGION)
 
 .. note::
 
@@ -261,6 +260,10 @@ content type text/html.
 .. code-block:: c
 
     HTTP_SERVER_CONTENT_TYPE(json, "application/json")
+
+When serving files from a static filesystem, the response chunk size can be configured
+using the :kconfig:option:`CONFIG_HTTP_SERVER_STATIC_FS_RESPONSE_SIZE` Kconfig option.
+This determines the size of individual chunks when transmitting file content to clients.
 
 Dynamic resources
 =================

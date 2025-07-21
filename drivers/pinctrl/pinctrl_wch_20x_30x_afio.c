@@ -10,7 +10,7 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/dt-bindings/pinctrl/ch32v20x_30x-pinctrl.h>
 
-#include <ch32fun.h>
+#include <hal_ch32fun.h>
 
 static GPIO_TypeDef *const wch_afio_pinctrl_regs[] = {
 	(GPIO_TypeDef *)DT_REG_ADDR(DT_NODELABEL(gpioa)),
@@ -55,14 +55,11 @@ int pinctrl_configure_pins(const pinctrl_soc_pin_t *pins, uint8_t pin_cnt, uintp
 				      (cfg << ((pin - 8) * 4));
 		}
 		if (pins->output_high) {
-			regs->OUTDR |= BIT(pin);
-			regs->BSHR |= BIT(pin);
+			regs->BSHR = BIT(pin);
 		} else if (pins->output_low) {
-			regs->OUTDR |= BIT(pin);
 			/* Reset the pin. */
-			regs->BSHR |= BIT(pin + 16);
+			regs->BCR = BIT(pin);
 		} else {
-			regs->OUTDR &= ~BIT(pin);
 			if (pins->bias_pull_up) {
 				regs->BSHR = BIT(pin);
 			}

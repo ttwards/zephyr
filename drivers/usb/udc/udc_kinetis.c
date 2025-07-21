@@ -653,7 +653,7 @@ static void usbfsotg_isr_handler(const struct device *dev)
 	}
 
 	if (istatus == USB_ISTAT_SOFTOK_MASK) {
-		udc_submit_event(dev, UDC_EVT_SOF, 0);
+		udc_submit_sof_event(dev);
 	}
 
 	if (istatus == USB_ISTAT_ERROR_MASK) {
@@ -1016,7 +1016,7 @@ static int usbfsotg_init(const struct device *dev)
 	base->INTEN = (USB_INTEN_SLEEPEN_MASK  |
 		       USB_INTEN_STALLEN_MASK |
 		       USB_INTEN_TOKDNEEN_MASK |
-		       USB_INTEN_SOFTOKEN_MASK |
+		       IF_ENABLED(CONFIG_UDC_ENABLE_SOF, (USB_INTEN_SOFTOKEN_MASK |))
 		       USB_INTEN_ERROREN_MASK |
 		       USB_INTEN_USBRSTEN_MASK);
 
@@ -1154,14 +1154,19 @@ static const struct udc_api usbfsotg_api = {
 	.unlock = usbfsotg_unlock,
 };
 
+#define USBFSOTG_IRQ_DEFINE_OR(n)						\
+	COND_CODE_1(CONFIG_UHC_NXP_KHCI,					\
+	(irq_connect_dynamic(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),		\
+			     (void (*)(const void *))usbfsotg_isr_handler,	\
+			     DEVICE_DT_INST_GET(n), 0)),			\
+	(IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),			\
+		     usbfsotg_isr_handler,					\
+		     DEVICE_DT_INST_GET(n), 0)))
+
 #define USBFSOTG_DEVICE_DEFINE(n)						\
 	static void udc_irq_enable_func##n(const struct device *dev)		\
 	{									\
-		IRQ_CONNECT(DT_INST_IRQN(n),					\
-			    DT_INST_IRQ(n, priority),				\
-			    usbfsotg_isr_handler,				\
-			    DEVICE_DT_INST_GET(n), 0);				\
-										\
+		USBFSOTG_IRQ_DEFINE_OR(n);					\
 		irq_enable(DT_INST_IRQN(n));					\
 	}									\
 										\

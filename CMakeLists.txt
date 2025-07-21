@@ -159,11 +159,17 @@ zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,no_str
 zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler-cpp,no_strict_aliasing>>)
 
 # Extra warnings options for twister run
-if (CONFIG_COMPILER_WARNINGS_AS_ERRORS)
+if(CONFIG_COMPILER_WARNINGS_AS_ERRORS)
   zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,warnings_as_errors>>)
   zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,warnings_as_errors>>)
   zephyr_compile_options($<$<COMPILE_LANGUAGE:ASM>:$<TARGET_PROPERTY:asm,warnings_as_errors>>)
   zephyr_link_libraries($<TARGET_PROPERTY:linker,warnings_as_errors>)
+endif()
+
+if(CONFIG_DEPRECATION_TEST)
+  zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,no_deprecation_warning>>)
+  zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,no_deprecation_warning>>)
+  zephyr_compile_options($<$<COMPILE_LANGUAGE:ASM>:$<TARGET_PROPERTY:asm,no_deprecation_warning>>)
 endif()
 
 # @Intent: Set compiler flags to enable buffer overflow checks in libc functions
@@ -239,6 +245,7 @@ SOC_* symbol.")
 endif()
 
 # Apply the final optimization flag(s)
+zephyr_compile_options($<$<COMPILE_LANGUAGE:ASM>:${OPTIMIZATION_FLAG}>)
 zephyr_compile_options($<$<COMPILE_LANGUAGE:C>:${OPTIMIZATION_FLAG}>)
 zephyr_compile_options($<$<COMPILE_LANGUAGE:CXX>:${OPTIMIZATION_FLAG}>)
 
@@ -1104,10 +1111,19 @@ if(CONFIG_CODE_DATA_RELOCATION)
 endif()
 
 if(CONFIG_USERSPACE)
-  zephyr_get_compile_options_for_lang_as_string(C compiler_flags_priv)
+  # Go for raw properties here since zephyr_get_compile_options_for_lang()
+  # processes the list of options, and wraps it in a $<JOIN thing. When
+  # generating the build systems this leads to some interesting command lines,
+  # with SHELL: not being present and other "random" list-join related issues
+  # (e.g. for IAR toolchains the lists were joined with "gnu" postfixed on a
+  # bunch of entries).
+  get_property(compiler_flags_priv TARGET zephyr_interface PROPERTY INTERFACE_COMPILE_OPTIONS)
   string(REPLACE "$<TARGET_PROPERTY:compiler,coverage>" ""
-         NO_COVERAGE_FLAGS "${compiler_flags_priv}"
-  )
+    KOBJECT_HASH_COMPILE_OPTIONS "${compiler_flags_priv}")
+
+  list(APPEND KOBJECT_HASH_COMPILE_OPTIONS
+                  $<TARGET_PROPERTY:compiler,no_function_sections>
+                  $<TARGET_PROPERTY:compiler,no_data_sections>)
 
   set(PROCESS_GPERF ${ZEPHYR_BASE}/scripts/build/process_gperf.py)
 endif()
@@ -1305,11 +1321,13 @@ if(CONFIG_USERSPACE)
   add_library(
     kobj_prebuilt_hash_output_lib
     OBJECT ${CMAKE_CURRENT_BINARY_DIR}/${KOBJECT_PREBUILT_HASH_OUTPUT_SRC}
-    )
+  )
 
-  set_source_files_properties(${KOBJECT_PREBUILT_HASH_OUTPUT_SRC}
-    PROPERTIES COMPILE_FLAGS
-    "${NO_COVERAGE_FLAGS} -fno-function-sections -fno-data-sections")
+  # set_target_properties sets ALL properties, target_compile_options() adds
+  # and KOBJECT_HASH_COMPILE_OPTIONS contains all the options.
+  set_target_properties(kobj_prebuilt_hash_output_lib PROPERTIES
+    COMPILE_OPTIONS "${KOBJECT_HASH_COMPILE_OPTIONS}"
+  )
 
   target_compile_definitions(kobj_prebuilt_hash_output_lib
     PRIVATE $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_DEFINITIONS>
@@ -1514,9 +1532,9 @@ if(CONFIG_USERSPACE)
     OBJECT ${CMAKE_CURRENT_BINARY_DIR}/${KOBJECT_HASH_OUTPUT_SRC}
     )
 
-  set_source_files_properties(${KOBJECT_HASH_OUTPUT_SRC}
-    PROPERTIES COMPILE_FLAGS
-    "${NO_COVERAGE_FLAGS} -fno-function-sections -fno-data-sections")
+  set_target_properties(kobj_hash_output_lib PROPERTIES
+    COMPILE_OPTIONS "${KOBJECT_HASH_COMPILE_OPTIONS}"
+  )
 
   target_compile_definitions(kobj_hash_output_lib
     PRIVATE $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_DEFINITIONS>
@@ -1684,8 +1702,12 @@ list(APPEND
 list(APPEND post_build_byproducts ${KERNEL_MAP_NAME})
 
 # Use ';' as separator to get proper space in resulting command.
-set(gap_fill_prop "$<TARGET_PROPERTY:bintools,elfconvert_flag_gapfill>")
-set(gap_fill "$<$<BOOL:${gap_fill_prop}>:${gap_fill_prop}${CONFIG_BUILD_GAP_FILL_PATTERN}>")
+# Ignore gapfill for RX target as some RX toolchains generate wrong output image when running
+# gapfill for binary format.
+if(NOT CONFIG_RX)
+  set(gap_fill_prop "$<TARGET_PROPERTY:bintools,elfconvert_flag_gapfill>")
+  set(gap_fill "$<$<BOOL:${gap_fill_prop}>:${gap_fill_prop}${CONFIG_BUILD_GAP_FILL_PATTERN}>")
+endif()
 
 if(CONFIG_OUTPUT_PRINT_MEMORY_USAGE)
   target_link_libraries(${logical_target_for_zephyr_elf} $<TARGET_PROPERTY:linker,memusage>)
@@ -1888,10 +1910,13 @@ if(CONFIG_BUILD_OUTPUT_S19)
 endif()
 
 if(CONFIG_OUTPUT_DISASSEMBLY)
-if(CONFIG_OUTPUT_DISASSEMBLE_ALL)
+  if(CONFIG_OUTPUT_DISASSEMBLE_ALL)
     set(disassembly_type "$<TARGET_PROPERTY:bintools,disassembly_flag_all>")
-  elseif (CONFIG_OUTPUT_DISASSEMBLY_WITH_SOURCE)
+  elseif(CONFIG_OUTPUT_DISASSEMBLY_WITH_SOURCE)
     set(disassembly_type "$<TARGET_PROPERTY:bintools,disassembly_flag_inline_source>")
+  endif()
+  if(CONFIG_OUTPUT_DISASSEMBLY_NO_ALIASES)
+    list(APPEND disassembly_type "$<TARGET_PROPERTY:bintools,disassembly_flag_no_aliases>")
   endif()
   list(APPEND
     post_build_commands
@@ -1967,32 +1992,20 @@ if(CONFIG_BUILD_OUTPUT_COMPRESS_DEBUG_SECTIONS)
 endif()
 
 if(CONFIG_BUILD_OUTPUT_EXE)
-  if (NOT CONFIG_NATIVE_LIBRARY)
-    list(APPEND
-      post_build_commands
-      COMMAND
-      ${CMAKE_COMMAND} -E copy ${KERNEL_ELF_NAME} ${KERNEL_EXE_NAME}
-      )
-    list(APPEND
-      post_build_byproducts
-      ${KERNEL_EXE_NAME}
-      )
-  else()
-    if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
-      set(MAKE "${CMAKE_MAKE_PROGRAM}" CACHE FILEPATH "cmake defined make")
-    endif()
-    find_program(MAKE make REQUIRED)
-    add_custom_target(native_runner_executable
-      ALL
-      COMMENT "Building native simulator runner, and linking final executable"
-      COMMAND
-      ${MAKE} -f ${ZEPHYR_BASE}/scripts/native_simulator/Makefile all --warn-undefined-variables
-        -r NSI_CONFIG_FILE=${APPLICATION_BINARY_DIR}/zephyr/NSI/nsi_config
-      # nsi_config is created by the board cmake file
-      DEPENDS ${logical_target_for_zephyr_elf}
-      BYPRODUCTS ${KERNEL_EXE_NAME}
-    )
+  if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
+    set(MAKE "${CMAKE_MAKE_PROGRAM}" CACHE FILEPATH "cmake defined make")
   endif()
+  find_program(MAKE make REQUIRED)
+  add_custom_target(native_runner_executable
+    ALL
+    COMMENT "Building native simulator runner, and linking final executable"
+    COMMAND
+    ${MAKE} -f ${ZEPHYR_BASE}/scripts/native_simulator/Makefile all --warn-undefined-variables
+      -r NSI_CONFIG_FILE=${APPLICATION_BINARY_DIR}/zephyr/NSI/nsi_config
+    # nsi_config is created by the board cmake file
+    DEPENDS ${logical_target_for_zephyr_elf}
+    BYPRODUCTS ${KERNEL_EXE_NAME}
+  )
   set(BYPRODUCT_KERNEL_EXE_NAME "${PROJECT_BINARY_DIR}/${KERNEL_EXE_NAME}" CACHE FILEPATH "Kernel exe file" FORCE)
 endif()
 

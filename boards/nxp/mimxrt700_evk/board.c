@@ -438,6 +438,14 @@ void board_early_init_hook(void)
 	CLOCK_AttachClk(kLPOSC_to_WWDT0);
 #endif
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(sai0), okay)
+	/* SAI clock 368.64 / 15 = 24.576MHz */
+	CLOCK_AttachClk(kAUDIO_PLL_PFD3_to_AUDIO_VDD2);
+	CLOCK_AttachClk(kAUDIO_VDD2_to_SAI012);
+	CLOCK_SetClkDiv(kCLOCK_DivSai012Clk, 15U);
+	RESET_ClearPeripheralReset(kSAI0_RST_SHIFT_RSTn);
+#endif
+
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(sc_timer), okay)
 	CLOCK_AttachClk(kFRO0_DIV6_to_SCT);
 #endif
@@ -496,6 +504,12 @@ void board_early_init_hook(void)
 
 	/* Clear LCDIF reset. */
 	RESET_ClearPeripheralReset(kLCDIF_RST_SHIFT_RSTn);
+#endif
+
+#if (DT_NODE_HAS_STATUS(DT_NODELABEL(i3c2), okay) || \
+		DT_NODE_HAS_STATUS(DT_NODELABEL(i3c3), okay))
+	CLOCK_AttachClk(kSENSE_BASE_to_I3C23);
+	CLOCK_SetClkDiv(kCLOCK_DivI3c23Clk, 4U);
 #endif
 }
 

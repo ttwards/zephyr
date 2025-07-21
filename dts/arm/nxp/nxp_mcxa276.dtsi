@@ -8,6 +8,7 @@
 #include <arm/armv8-m.dtsi>
 #include <zephyr/dt-bindings/clock/mcux_lpc_syscon_clock.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
 
 / {
 	cpus {
@@ -270,6 +271,11 @@
 				erase-block-size = <8192>;
 				write-block-size = <128>;
 			};
+
+			uuid: uuid@1100800 {
+				compatible = "nxp,lpc-uid";
+				reg = <0x1100800 0x10>;
+			};
 		};
 
 		edma0: dma-controller@40080000 {
@@ -283,6 +289,155 @@
 			interrupts = <2 0>, <3 0>, <4 0>, <5 0>,
 				<6 0>, <7 0>, <8 0>, <9 0>;
 			no-error-irq;
+			status = "disabled";
+		};
+
+		i3c0: i3c@40002000 {
+			compatible = "nxp,mcux-i3c";
+			reg = <0x40002000 0x1000>;
+			interrupts = <24 0>;
+			clocks = <&syscon MCUX_I3C_CLK>;
+			clk-divider = <4>;
+			clk-divider-slow = <1>;
+			clk-divider-tc = <1>;
+			status = "disabled";
+			#address-cells = <3>;
+			#size-cells = <0>;
+		};
+
+		lpadc0: lpadc@400af000 {
+			compatible = "nxp,lpc-lpadc";
+			reg = <0x400af000 0x1000>;
+			interrupts = <62 0>;
+			status = "disabled";
+			clk-divider = <1>;
+			clk-source = <0>;
+			voltage-ref= <2>;
+			calibration-average = <128>;
+			power-level = <0>;
+			offset-value-a = <0>;
+			offset-value-b = <0>;
+			#io-channel-cells = <1>;
+			clocks = <&syscon MCUX_LPADC1_CLK>;
+		};
+
+		temp0: temp0 {
+			compatible = "nxp,lpadc-temp40";
+			status = "disabled";
+		};
+
+		lpadc1: lpadc@400b0000 {
+			compatible = "nxp,lpc-lpadc";
+			reg = <0x400b0000 0x1000>;
+			interrupts = <63 0>;
+			status = "disabled";
+			clk-divider = <1>;
+			clk-source = <0>;
+			voltage-ref= <2>;
+			calibration-average = <128>;
+			power-level = <1>;
+			offset-value-a = <0>;
+			offset-value-b = <0>;
+			#io-channel-cells = <1>;
+			clocks = <&syscon MCUX_LPADC2_CLK>;
+		};
+
+		lpcmp0: lpcmp@400b1000 {
+			compatible = "nxp,lpcmp";
+			reg = <0x400b1000 0x1000>;
+			interrupts = <64 0>;
+			status = "disabled";
+			#io-channel-cells = <2>;
+		};
+
+		lpcmp1: lpcmp@400b2000 {
+			compatible = "nxp,lpcmp";
+			reg = <0x400b2000 0x1000>;
+			interrupts = <65 0>;
+			status = "disabled";
+			#io-channel-cells = <2>;
+		};
+
+		lpcmp2: lpcmp@400b3000 {
+			compatible = "nxp,lpcmp";
+			reg = <0x400b3000 0x1000>;
+			interrupts = <66 0>;
+			status = "disabled";
+			#io-channel-cells = <2>;
+		};
+
+		lpi2c0: i2c@4009a000 {
+			compatible = "nxp,lpi2c";
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x4009a000 0x1000>;
+			interrupts = <26 0>;
+			clocks = <&syscon MCUX_LPI2C0_CLK>;
+			status = "disabled";
+		};
+
+		lpi2c1: i2c@4009b000 {
+			compatible = "nxp,lpi2c";
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x4009b000 0x1000>;
+			interrupts = <27 0>;
+			clocks = <&syscon MCUX_LPI2C1_CLK>;
+			status = "disabled";
+		};
+
+		lpi2c2: i2c@400d4000 {
+			compatible = "nxp,lpi2c";
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x400d4000 0x1000>;
+			interrupts = <77 0>;
+			clocks = <&syscon MCUX_LPI2C2_CLK>;
+			status = "disabled";
+		};
+
+		lpi2c3: i2c@400d5000 {
+			compatible = "nxp,lpi2c";
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x400d5000 0x1000>;
+			interrupts = <78 0>;
+			clocks = <&syscon MCUX_LPI2C3_CLK>;
+			status = "disabled";
+		};
+
+		lpspi0: spi@4009c000 {
+			compatible = "nxp,lpspi";
+			reg = <0x4009c000 0x1000>;
+			interrupts = <28 0>;
+			clocks = <&syscon MCUX_LPSPI0_CLK>;
+			tx-fifo-size = <4>;
+			rx-fifo-size = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		lpspi1: spi@4009d000 {
+			compatible = "nxp,lpspi";
+			reg = <0x4009d000 0x1000>;
+			interrupts = <29 0>;
+			clocks = <&syscon MCUX_LPSPI1_CLK>;
+			tx-fifo-size = <4>;
+			rx-fifo-size = <4>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		ostimer0: timers@400ad000 {
+			compatible = "nxp,os-timer";
+			reg = <0x400ad000 0x1000>;
+			interrupts = <57 0>;
 			status = "disabled";
 		};
 
